@@ -9,5 +9,6 @@ func NewRouter(repos *Repository) *gin.Engine {
 	router.POST("/api/user/register", repos.Register)
 	router.POST("/api/user/login", repos.Authentication)
 	router.POST("api/user/orders", AuthMiddleware(), repos.Loading)
+	router.GET("/api/user/orders", AuthMiddleware(), repos.GetOrders)
 	return router
 }
