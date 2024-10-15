@@ -26,7 +26,19 @@ type Repository struct {
 func NewRepository(s store.Storage) *Repository {
 	return &Repository{Storage: s}
 }
+func SetAuthCookie(c *gin.Context, name string, value string, duration time.Duration) {
+	cookie := &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Expires:  time.Now().Add(duration),
+		HttpOnly: true,
+		Secure:   false,
+		Path:     "/",
+		SameSite: http.SameSiteStrictMode,
+	}
 
+	http.SetCookie(c.Writer, cookie)
+}
 func (r *Repository) Register(c *gin.Context) { //// После регистрации сделать так, что ты автоматом и авторизован
 	if c.GetHeader("Content-Type") != "application/json" {
 		return
@@ -40,7 +52,14 @@ func (r *Repository) Register(c *gin.Context) { //// После регистра
 		c.String(domain.StatusDetermination(err), err.Error())
 	}
 	c.String(http.StatusOK, "user successfully registered")
-
+	token, err := jwt1.GenerateJWT(user.Login)
+	if err != nil {
+		c.String(domain.StatusDetermination(err), err.Error())
+		return
+	}
+	time := 24 * time.Hour
+	SetAuthCookie(c, "auth_token", token, time)
+	c.String(http.StatusOK, "user successfully registered")
 }
 
 func (r *Repository) GetWithdrawals(c *gin.Context) {
@@ -211,16 +230,8 @@ func (r *Repository) Authentication(c *gin.Context) {
 		c.String(domain.StatusDetermination(err), err.Error())
 		return
 	}
-	cookie := &http.Cookie{
-		Name:     "auth_token",
-		Value:    token,
-		Expires:  time.Now().Add(24 * time.Hour),
-		HttpOnly: true,
-		Secure:   false,
-		Path:     "/",
-		SameSite: http.SameSiteStrictMode,
-	}
-	http.SetCookie(c.Writer, cookie)
+	time := 24 * time.Hour
+	SetAuthCookie(c, "auth_token", token, time)
 
 	c.String(http.StatusOK, "user successfully authenticated")
 
