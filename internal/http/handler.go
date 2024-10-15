@@ -51,7 +51,6 @@ func (r *Repository) Register(c *gin.Context) { //// После регистра
 	if err != nil {
 		c.String(domain.StatusDetermination(err), err.Error())
 	}
-	c.String(http.StatusOK, "user successfully registered")
 	token, err := jwt1.GenerateJWT(user.Login)
 	if err != nil {
 		c.String(domain.StatusDetermination(err), err.Error())
