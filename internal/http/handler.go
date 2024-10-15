@@ -158,6 +158,7 @@ func (r *Repository) GetOrders(c *gin.Context) {
 		return
 	}
 	if len(history) == 0 {
+		c.Header("Content-Type", "application/json")
 		c.Status(http.StatusNoContent)
 		return
 	}
