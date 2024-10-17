@@ -249,7 +249,10 @@ func FetchOrder(orderNumber string, wgResults *sync.WaitGroup, resultsChan chan<
 		return resp.StatusCode
 	}
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return http.StatusInternalServerError
+	}
 
 	orderResponse, err := json2.UnpackingOrderResponseJSON(body)
 	if err != nil {
@@ -270,17 +273,18 @@ func worker(orderNumbers chan string, wg *sync.WaitGroup, resultsChan chan<- jso
 				select {
 				case <-stopChan:
 					time.Sleep(1 * time.Minute)
+					continue
 				default:
 					status := FetchOrder(orderNumber, wg, resultsChan, apiURL)
 
 					if status == http.StatusOK {
-						break
+						return
 					} else if status == http.StatusTooManyRequests {
 						log.Printf("Received status 429 for order %s, signal about suspension", orderNumber)
 						stopChan <- struct{}{}
 					} else {
 						log.Printf("Order processing error %s: %d", orderNumber, status)
-						break
+						return
 					}
 				}
 			}
@@ -319,6 +323,7 @@ func (r *Repository) WorkingWithLoyaltyCalculationService(apiURL string) gin.Han
 		wg.Wait()
 		close(orderChan)
 		close(resultsChan)
+		close(stopChan)
 
 		c.JSON(http.StatusOK, gin.H{"message": "Calculation service completed"})
 	}
