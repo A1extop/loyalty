@@ -90,6 +90,9 @@ func (s *Store) Orders(login string) ([]json2.History, error) {
 		}
 		slHistory = append(slHistory, history)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return slHistory, nil
 }
 
