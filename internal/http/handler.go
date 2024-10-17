@@ -3,7 +3,6 @@ package http
 import (
 	"net/http"
 
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -237,72 +236,90 @@ func (r *Repository) Authentication(c *gin.Context) {
 
 }
 
-func FetchOrder(orderNumber string, wg *sync.WaitGroup, wgResults *sync.WaitGroup, resultsChan chan<- json2.OrderResponse, apiURL string) error {
-	defer wg.Done()
+func FetchOrder(orderNumber string, wgResults *sync.WaitGroup, resultsChan chan<- json2.OrderResponse, apiURL string) int {
 	defer wgResults.Done()
 
 	resp, err := http.Get(fmt.Sprintf(apiURL, orderNumber))
 	if err != nil {
-		return err
+		return http.StatusInternalServerError
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return errors.New("Status mismatch")
+		return resp.StatusCode
 	}
 
 	body, _ := io.ReadAll(resp.Body)
 
 	orderResponse, err := json2.UnpackingOrderResponseJSON(body)
 	if err != nil {
-		return nil ///////очень не уверен, нужно ли вообще юзать здесь ерроры
+		return http.StatusInternalServerError
 	}
 	resultsChan <- *orderResponse
-	return nil
+	return http.StatusOK
 }
 
-func worker(orderNumbers <-chan string, wg *sync.WaitGroup, resultsChan chan<- json2.OrderResponse, apiURL string) {
+func worker(orderNumbers chan string, wg *sync.WaitGroup, resultsChan chan<- json2.OrderResponse, apiURL string, stopChan chan struct{}) {
 	for orderNumber := range orderNumbers {
 		wg.Add(1)
 
 		go func(orderNumber string) {
 			defer wg.Done()
 
-			err := FetchOrder(orderNumber, wg, wg, resultsChan, apiURL)
-			if err != nil {
-				log.Printf("Ошибка при обработке заказа %s: %v", orderNumber, err) ///////////точно убрать
+			for {
+				select {
+				case <-stopChan:
+					time.Sleep(1 * time.Minute)
+				default:
+					status := FetchOrder(orderNumber, wg, resultsChan, apiURL)
+
+					if status == http.StatusOK {
+						break
+					} else if status == http.StatusTooManyRequests {
+						log.Printf("Received status 429 for order %s, signal about suspension", orderNumber)
+						stopChan <- struct{}{}
+					} else {
+						log.Printf("Order processing error %s: %d", orderNumber, status)
+						break
+					}
+				}
 			}
 		}(orderNumber)
 	}
 }
 
-func (r *Repository) WorkingWithLoyaltyCalculationService(c *gin.Context, apiURL string) {
-	var wg sync.WaitGroup
-	numCPUs := runtime.NumCPU()
+func (r *Repository) WorkingWithLoyaltyCalculationService(apiURL string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var wg sync.WaitGroup
+		numCPUs := runtime.NumCPU()
 
-	orderChan := make(chan string, 100)
-	resultsChan := make(chan json2.OrderResponse)
+		orderChan := make(chan string, 100)
+		resultsChan := make(chan json2.OrderResponse)
+		stopChan := make(chan struct{})
 
-	for i := 0; i < numCPUs; i++ {
-		go worker(orderChan, &wg, resultsChan, apiURL)
-	}
+		for i := 0; i < numCPUs; i++ {
+			go worker(orderChan, &wg, resultsChan, apiURL, stopChan)
+		}
 
-	go r.Storage.FetchAndUpdateOrderNumbers(orderChan)
+		go r.Storage.FetchAndUpdateOrderNumbers(orderChan)
 
-	go func() {
-		for result := range resultsChan {
-
-			if result.Status == "REGISTERED" || result.Status == "PROCESSING" {
-				orderChan <- result.Order
-			} else {
-				err := r.Storage.Send(result)
-				if err != nil {
-					log.Println("error sending data to database")
+		go func() {
+			for result := range resultsChan {
+				if result.Status == "REGISTERED" || result.Status == "PROCESSING" {
+					orderChan <- result.Order
+				} else {
+					err := r.Storage.Send(result)
+					if err != nil {
+						log.Println("error sending DB")
+					}
 				}
 			}
-		}
-	}()
+		}()
 
-	wg.Wait()
-	close(resultsChan)
+		wg.Wait()
+		close(orderChan)
+		close(resultsChan)
+
+		c.JSON(http.StatusOK, gin.H{"message": "Calculation service completed"})
+	}
 }

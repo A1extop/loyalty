@@ -15,5 +15,6 @@ func NewRouter(repos *Repository) *gin.Engine {
 	router.GET("/api/user/balance", logging.AuthMiddleware(), logging.LoggingGet(log), repos.GetBalance) //+
 	router.POST("/api/user/balance/withdraw", logging.AuthMiddleware(), logging.LoggingPost(log), repos.PointsDebiting)
 	router.GET("/api/user/withdrawals", logging.AuthMiddleware(), logging.LoggingGet(log), repos.GetWithdrawals)
+
 	return router
 }

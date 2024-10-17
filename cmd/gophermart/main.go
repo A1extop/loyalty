@@ -23,11 +23,13 @@ func main() {
 		psql.CreateOrConnectTable(db)
 	}
 	router := http2.NewRouter(repos)
-
+	if parameters.SystemAddr != "" {
+		go repos.WorkingWithLoyaltyCalculationService(parameters.SystemAddr)
+	}
 	log.Printf("Starting server on port %s", parameters.AddressHTTP)
 	err = http.ListenAndServe(parameters.AddressHTTP, router)
 	if err != nil {
 		log.Fatal(err)
 	}
-	
+
 }

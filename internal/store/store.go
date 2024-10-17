@@ -257,8 +257,9 @@ func FetchOrderNumbersFromDB(db *sql.DB) ([]string, error) {
 	}
 	return orderNumbers, nil
 }
+
 func (s *Store) FetchAndUpdateOrderNumbers(orderChan chan<- string) {
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
 	for {
