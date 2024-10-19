@@ -63,7 +63,7 @@ func (s *Store) UpdateOrderInDB(orderNumber, status string, accrual int) error {
 		return err
 	}
 	query1 := `UPDATE loyalty_accounts SET current = current + $1 WHERE username = $2`
-	_, err = tx.Exec(query1, accrual, orderNumber)
+	_, err = tx.Exec(query1, accrual, login)
 	if err != nil {
 		return err
 	}
