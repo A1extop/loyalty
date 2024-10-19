@@ -62,7 +62,7 @@ func (s *Store) UpdateOrderInDB(orderNumber, status string, accrual int) error {
 	if err != nil {
 		return err
 	}
-	query1 := `UPDATE loyalty_account SET accrual = accrual + $1 WHERE username = $2`
+	query1 := `UPDATE loyalty_accounts SET current = current + $1 WHERE username = $2`
 	_, err = tx.Exec(query1, accrual, orderNumber)
 	if err != nil {
 		return err
@@ -341,8 +341,7 @@ func CreateOrConnectTable(db *sql.DB) {
 
 	exists, err := tableExists(db, "users")
 	if err != nil {
-		log.Printf("error in checking for database presence: %v", err)
-		return
+		log.Fatal("error in checking for database presence: ", err)
 	}
 	if !exists {
 		_, err = db.Exec(`CREATE TABLE users (
@@ -350,13 +349,13 @@ func CreateOrConnectTable(db *sql.DB) {
     password_hash VARCHAR(255) NOT NULL
 );`)
 		if err != nil {
-			log.Printf("database creation error: %v", err)
+			log.Fatal("database creation error1:", err)
 		}
 	}
 
 	exists, err = tableExists(db, "order_history")
 	if err != nil {
-		log.Fatal("dB error 1:", err)
+		log.Fatal("error in checking for database presence: ", err)
 	}
 	if !exists {
 		_, err = db.Exec(`CREATE TABLE order_history (
@@ -369,12 +368,12 @@ func CreateOrConnectTable(db *sql.DB) {
 			FOREIGN KEY (username) REFERENCES users(username)
 		);`)
 		if err != nil {
-			log.Fatal("dB error 2:", err)
+			log.Fatal("database creation error2:", err)
 		}
 	}
 	exists, err = tableExists(db, "loyalty_accounts")
 	if err != nil {
-		log.Fatal("dB error")
+		log.Fatal("error in checking for database presence: ", err)
 	}
 	if !exists {
 		_, err = db.Exec(`CREATE TABLE loyalty_accounts (
@@ -384,7 +383,7 @@ func CreateOrConnectTable(db *sql.DB) {
     FOREIGN KEY (username) REFERENCES users(username)
 );`)
 		if err != nil {
-			log.Fatal("dB error 3:", err)
+			log.Fatal("database creation error3:", err)
 		}
 	}
 }
