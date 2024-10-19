@@ -92,6 +92,9 @@ func (s *Store) GetOrdersForProcessing() ([]string, error) {
 		}
 		orders = append(orders, orderNumber)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 
 	return orders, nil
 }
