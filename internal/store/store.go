@@ -87,7 +87,7 @@ func (s *Store) Orders(login string) ([]json2.History, error) {
 		accFloat := float64(accrual) / 100
 		withdrawFloat := float64(withdrawals) / 100
 		statusValue := "PROCESSING"
-		if status.Valid {
+		if status.Valid && status.String != "" {
 			statusValue = status.String
 		}
 		var timeStampValue time.Time
