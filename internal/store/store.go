@@ -99,8 +99,8 @@ func (s *Store) GetOrdersForProcessing() ([]string, error) {
 	return orders, nil
 }
 func (s *Store) SendingData(login string, number string) error {
-	query := `INSERT INTO order_history  (username, order_number) VALUES ($1, $2)`
-	_, err := s.db.Exec(query, login, number)
+	query := `INSERT INTO order_history  (username, order_number, status) VALUES ($1, $2, $3)`
+	_, err := s.db.Exec(query, login, number, "PROCESSING")
 	if err != nil {
 		return errors.Join(err, errors2.ErrInternal)
 	}

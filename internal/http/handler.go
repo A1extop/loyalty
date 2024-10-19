@@ -138,11 +138,10 @@ func (r *Repository) GetOrders(c *gin.Context) {
 	}
 	history, err := r.Storage.Orders(userName.(string))
 	if err != nil {
-		c.String(http.StatusInternalServerError, "Failed to retrieve orders.", err.Error())
+		c.String(http.StatusInternalServerError, "Failed to retrieve orders: %s", err.Error())
 		return
 	}
 	if len(history) == 0 {
-		c.Header("Content-Type", "application/json")
 		c.Status(http.StatusNoContent)
 		return
 	}
@@ -207,7 +206,7 @@ func (r *Repository) GetBalance(c *gin.Context) {
 	}
 	current, withdrawn, err := r.Storage.Balance(userName.(string))
 	if err != nil {
-		c.String(http.StatusInternalServerError, "error receiving balance", err.Error())
+		c.String(http.StatusInternalServerError, "error receiving balance: %s", err.Error())
 		return
 	}
 	balance := json2.NewBalance(current, withdrawn)
