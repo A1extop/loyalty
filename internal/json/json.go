@@ -137,9 +137,9 @@ func UnpackingOrderResponseJSON(body []byte) (*OrderResponse, error) {
 }
 
 func UnpackingSystemResponse(data io.ReadCloser) (*OrderResponse2, error) {
-	var orderResponse *OrderResponse2
-	if err := json.NewDecoder(data).Decode(orderResponse); err != nil {
+	var orderResponse OrderResponse2
+	if err := json.NewDecoder(data).Decode(&orderResponse); err != nil {
 		return nil, err
 	}
-	return orderResponse, nil
+	return &orderResponse, nil
 }

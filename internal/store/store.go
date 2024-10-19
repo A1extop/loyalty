@@ -52,7 +52,7 @@ func (s *Store) UpdateOrderInDB(orderNumber, status string, accrual int) error {
 	}()
 	query := `UPDATE order_history SET status = $1, accrual = $2, processed_at = NOW() WHERE order_number = $3`
 
-	_, err = s.db.Exec(query, status, accrual, orderNumber)
+	_, err = tx.Exec(query, status, accrual, orderNumber)
 	if err != nil {
 		return err
 	}
@@ -63,7 +63,7 @@ func (s *Store) UpdateOrderInDB(orderNumber, status string, accrual int) error {
 		return err
 	}
 	query1 := `UPDATE loyalty_account SET accrual = accrual + $1 WHERE username = $2`
-	_, err = s.db.Exec(query1, status, accrual, orderNumber)
+	_, err = tx.Exec(query1, accrual, orderNumber)
 	if err != nil {
 		return err
 	}
