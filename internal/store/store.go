@@ -197,7 +197,7 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) err
 	err = tx.QueryRow(query, login).Scan(&balance)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return errors.Join(errors.New("account not found"), errors2.ErrConflict)
+			return errors.Join(errors.New("account not found"), errors2.ErrConflict) //конфликт поставил на время, мне надо было понять, в какой из двух ошибка возникает, после заменю на NotFound
 		}
 		return errors.Join(err, errors2.ErrInternal)
 	}
@@ -206,14 +206,13 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) err
 	if balanceFloat-num < 0 {
 		return errors.Join(errors.New("insufficient funds"), errors2.ErrPaymentRequired)
 	}
-
-	query = `SELECT withdrawals FROM order_history WHERE username = $1 AND order_number = $2`
+	query1 := `SELECT withdrawals FROM order_history WHERE username = $1 AND order_number = $2`
 	var withdrawals int
-	row := tx.QueryRow(query, login, order)
+	row := tx.QueryRow(query1, login, order)
 	err = row.Scan(&withdrawals)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return errors.Join(errors.New("order not found"), errors2.ErrNotFound)
+			return errors.Join(errors.New("order not found"), errors2.ErrNotFound) //здесь появляется ошибка, которой быть не должно, не знаю, что с этим делать
 		}
 		return errors.Join(err, errors2.ErrInternal)
 	}
