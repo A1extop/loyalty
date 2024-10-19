@@ -194,7 +194,7 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) err
 	}()
 	var balance int
 	query := `SELECT current FROM loyalty_accounts WHERE username = $1`
-	err = s.db.QueryRow(query, login).Scan(&balance)
+	err = tx.QueryRow(query, login).Scan(&balance)
 	if err != nil {
 		return errors.Join(err, errors2.ErrInternal)
 	}

@@ -79,8 +79,11 @@ func processOrder(r *Repository, order string, systemAddr string) error {
 			return err
 		}
 	}
-
-	err = r.Storage.UpdateOrderInDB(order, orderResp.Status, int(*orderResp.Accrual*100))
+	if orderResp.Accrual == nil {
+		return nil
+	}
+	sum := *orderResp.Accrual
+	err = r.Storage.UpdateOrderInDB(order, orderResp.Status, int(sum*100))
 	if err != nil {
 		return err
 	}
