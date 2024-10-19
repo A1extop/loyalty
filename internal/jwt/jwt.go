@@ -14,6 +14,7 @@ type Claims struct {
 	jwt.StandardClaims
 }
 
+// Генерирует JWT токен
 func GenerateJWT(username string) (string, error) {
 
 	expirationTime := time.Now().Add(24 * time.Hour)

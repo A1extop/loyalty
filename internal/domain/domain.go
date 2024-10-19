@@ -11,6 +11,7 @@ var (
 	ErrConflict            = errors.New("conflict")
 	ErrUnprocessableEntity = errors.New("unprocessable entity") //
 	ErrTooManyRequests     = errors.New("too many requests")
+	ErrPaymentRequired     = errors.New("status Payment Required")
 )
 
 func StatusDetermination(err error) int {
@@ -29,6 +30,9 @@ func StatusDetermination(err error) int {
 		}
 		if errors.Is(err, ErrTooManyRequests) {
 			return http.StatusTooManyRequests
+		}
+		if errors.Is(err, ErrPaymentRequired) {
+			return http.StatusPaymentRequired
 		}
 
 	}

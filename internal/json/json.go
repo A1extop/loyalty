@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"io"
 )
 
 type UserCredentials struct {
@@ -67,28 +67,35 @@ func PackingWithdrawalsJSON(slHistory []History) ([]byte, error) {
 	}
 	data, err := json.Marshal(partialHistorys)
 	if err != nil {
-		return nil, err /////////////////////
+		return nil, err
 	}
 	return data, nil
 }
+
+// Возвращает структуру с полями current и withdrawn
 func NewBalance(current float64, withdrawn float64) *Balance {
 	return &Balance{Current: current, Withdrawn: withdrawn}
 }
-func UnpackingOrderPointsJSON(c *gin.Context) (*OrderPoints, error) {
+
+// Распаковывает данные в структуру OrderPoints
+func UnpackingOrderPointsJSON(data io.ReadCloser) (*OrderPoints, error) {
 	orderPoints := NewOrderPoints()
-	if err := json.NewDecoder(c.Request.Body).Decode(orderPoints); err != nil { ///////////////////аналогично
+	if err := json.NewDecoder(data).Decode(orderPoints); err != nil {
 		return nil, err
 	}
 	return orderPoints, nil
 }
-func UnpackingUserJSON(c *gin.Context) (*UserCredentials, error) {
+
+// Распаковывает данные в структуру UserCredentials и возвращает структуру
+func UnpackingUserJSON(data io.ReadCloser) (*UserCredentials, error) {
 	user := NewUser()
-	if err := json.NewDecoder(c.Request.Body).Decode(user); err != nil { /////////////// хочется отсюда убрать c context на самом деле и сделать передачу иначе
+	if err := json.NewDecoder(data).Decode(user); err != nil {
 		return nil, err
 	}
 	return user, nil
 }
 
+// Заворачивание данных в JSON
 func PackingHistoryJSON(slHistory []History) ([]byte, error) {
 	responses := make([]OrderResponse1, len(slHistory))
 
@@ -108,6 +115,8 @@ func PackingHistoryJSON(slHistory []History) ([]byte, error) {
 	}
 	return data, nil
 }
+
+// Упаковывает структуру Balance в формат JSON
 func PackingMoney(balance Balance) ([]byte, error) {
 	data, err := json.Marshal(balance)
 	if err != nil {

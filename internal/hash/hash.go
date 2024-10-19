@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 )
 
+// Хеширует пароль
 func HashPassword(password string, key string) (string, error) {
 	pas, err := json.Marshal(password)
 	if err != nil {

@@ -21,17 +21,25 @@ type Store struct {
 	db *sql.DB
 }
 type Storage interface {
+	//Добавляет в таблицу users пользователя, а также создаёт запись в loyalty_accounts транзакциями
 	AddUsers(login string, key string, password string) error
+	//Проверяет наличие и корректность данных, отправленынх клиентом в таблице
 	CheckAvailability(login string, password string) error
+
 	SendingData(login string, number string) error
+	//Проверка на наличие номера в таблице
 	CheckNumber(number string) error
+	//Проверка на наличие пользователя (есть вопрос,а нужен ли этот метод?)))
 	CheckUserOrders(login string, num string) (bool, error)
-
+	//Полученает данные с таблицы order_history, заворачивает данные в структуру и возвращает массив структур
 	Orders(login string) ([]json2.History, error)
+	//Заходит в таблицу loyalt_accounts и возвращает current, withdrawn error
 	Balance(login string) (float64, float64, error)
-
+	//Проверяет, хватает ли баланса для списания средств. Если да, то идёт в loyalty_accounts, там изменяет текущий баланс клиента, изменяет также в таблице order_history accrual и withdrawals
 	ChangeLoyaltyPoints(login string, order string, num float64) error
+	//Получение заказов с нужными статусами и отправка их в канал
 	FetchAndUpdateOrderNumbers(orderChan chan<- string)
+	//Обновление данных в таблице
 	Send(result json2.OrderResponse) error
 }
 
@@ -56,6 +64,7 @@ func (s *Store) Balance(login string) (float64, float64, error) {
 	withdrawnFloat := float64(withdrawn) / 10
 	return currentFloat, withdrawnFloat, nil
 }
+
 func (s *Store) Orders(login string) ([]json2.History, error) {
 	slHistory := make([]json2.History, 0)
 	query := `SELECT history_id, order_number, status, accrual, withdrawals, processed_at 
@@ -122,6 +131,7 @@ func (s *Store) CheckNumber(number string) error {
 }
 
 func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) error {
+	num *= 10
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -131,42 +141,40 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) err
 			tx.Rollback()
 		}
 	}()
-	var balance float64
+	var balance int
 	query := `SELECT balance FROM loyalty_accounts WHERE username = $1`
 	err = s.db.QueryRow(query, login).Scan(&balance)
-	num *= 10
 	if err != nil {
-		return err
+		return errors.Join(err, domain.ErrInternal)
 	}
-	if balance-num < 0 {
-		err = errors.New("there are insufficient funds in the account")
-		return err
+	balanceFloat := float64(balance)
+	if balanceFloat-num < 0 {
+		return errors.Join(errors.New("there are insufficient funds in the account"), domain.ErrPaymentRequired)
 	}
 	query = `SELECT withdrawals FROM orders WHERE username = $1`
-	var withdrawals float64
+	var withdrawals int
 	row := tx.QueryRow(query, login)
 	err = row.Scan(&withdrawals)
 	if err != nil {
-		return err
+		return errors.Join(err, domain.ErrInternal)
+
 	}
-	if withdrawals != 0.0 {
-		return errors.New("there has already been a write-off for this order")
+	currentBalance := balanceFloat - num
+	withdrawalsFloat := float64(withdrawals)
+	if withdrawalsFloat != 10.0 {
+		return errors.Join(errors.New("there has already been a write-off for this order"), domain.ErrUnprocessableEntity) //проверка здесь происходит на то, не списывались ли в счёт этого заказа уже баллы, возвращаю 422, но не уверен
 	}
-	_, err = tx.Exec("UPDATE orders SET withdrawals  = $1 WHERE username = $2", num, login)
+	_, err = tx.Exec("UPDATE order_history SET withdrawals  = $1 WHERE username = $2", num, login)
 	if err != nil {
-		return err
+		return errors.Join(err, domain.ErrInternal)
 	}
-	_, err = tx.Exec("UPDATE order_history SET balance = balance - $1 WHERE username = $2", num, login)
+	_, err = tx.Exec("UPDATE loyalty_accounts SET balance = $1 WHERE username = $2", currentBalance, login)
 	if err != nil {
-		return err
-	}
-	_, err = tx.Exec("UPDATE order_history SET withdrawn = withdrawn  + $1 WHERE username = $2", num, login)
-	if err != nil {
-		return err
+		return errors.Join(err, domain.ErrInternal)
 	}
 	err = tx.Commit()
 	if err != nil {
-		return err
+		return errors.Join(err, domain.ErrInternal)
 	}
 
 	return nil
@@ -238,8 +246,9 @@ func (s *Store) CheckAvailability(login string, password string) error {
 	return nil
 }
 
+// Проверяет статусы и заказов, если 'REGISTERED', 'PROCESSING', то добавляет их в массив заказов и отправляет массив
 func FetchOrderNumbersFromDB(db *sql.DB) ([]string, error) {
-	query := `SELECT order_number FROM orders WHERE status IN ('REGISTERED', 'PROCESSING')`
+	query := `SELECT order_number FROM order_history WHERE status IN ('REGISTERED', 'PROCESSING')`
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
@@ -279,8 +288,10 @@ func (s *Store) FetchAndUpdateOrderNumbers(orderChan chan<- string) {
 		}
 	}
 }
+
 func (s *Store) Send(result json2.OrderResponse) error {
 	query := `UPDATE order_history SET status  = $1, accrual = $2 WHERE  = order_number = $3`
+
 	tx, err := s.db.Begin()
 	go func() {
 		if err != nil {
@@ -288,13 +299,13 @@ func (s *Store) Send(result json2.OrderResponse) error {
 		}
 	}()
 	if err != nil {
-		return err // точно ли нужно?
+		return err
 	}
-	_, err = tx.Exec(query, result.Status, result.Accrual, result.Order) /////// не учитывается транзакция, я её запихнул куда-то блять в другое место
+	_, err = tx.Exec(query, result.Status, result.Accrual, result.Order)
 	if err != nil {
 		return err
 	}
-	query1 := `UPDATE loyalty_accounts SET current = current + $1 WHERE  = order_number = $2`
+	query1 := `UPDATE loyalty_accounts SET current = current + $1 WHERE order_number = $2`
 	_, err = tx.Exec(query1, result.Accrual, result.Order)
 	err = tx.Commit()
 	if err != nil {

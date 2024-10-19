@@ -38,11 +38,14 @@ func SetAuthCookie(c *gin.Context, name string, value string, duration time.Dura
 
 	http.SetCookie(c.Writer, cookie)
 }
-func (r *Repository) Register(c *gin.Context) { //// После регистрации сделать так, что ты автоматом и авторизован
+
+// Регистрирует пользователя и после успешной регистрации сразу авторизовывает
+func (r *Repository) Register(c *gin.Context) {
 	if c.GetHeader("Content-Type") != "application/json" {
 		return
 	}
-	user, err := json2.UnpackingUserJSON(c)
+	data := c.Request.Body
+	user, err := json2.UnpackingUserJSON(data)
 	if err != nil {
 		c.String(http.StatusBadRequest, err.Error())
 	}
@@ -60,6 +63,7 @@ func (r *Repository) Register(c *gin.Context) { //// После регистра
 	c.String(http.StatusOK, "user successfully registered")
 }
 
+// Получение информации о выводе средств
 func (r *Repository) GetWithdrawals(c *gin.Context) {
 	userName, exists := c.Get("username")
 	if !exists {
@@ -79,72 +83,7 @@ func (r *Repository) GetWithdrawals(c *gin.Context) {
 
 }
 
-func (r *Repository) PointsDebiting(c *gin.Context) {
-	if c.GetHeader("Content-Type") != "application/json" {
-		return
-	}
-	authToken, err := c.Cookie("auth_token")
-	if err != nil {
-		c.String(http.StatusUnauthorized, "The user is not authorized.")
-		return
-	}
-	userName, err := jwt1.ParseJWT(authToken)
-	if err != nil {
-		c.String(http.StatusUnauthorized, "Invalid token.")
-		return
-	}
-	orderPoints, err := json2.UnpackingOrderPointsJSON(c)
-	if err != nil {
-		c.String(http.StatusBadRequest, err.Error())
-	}
-	err = r.Storage.ChangeLoyaltyPoints(userName, orderPoints.Order, orderPoints.Sum)
-	if err != nil {
-		c.String(domain.StatusDetermination(err), err.Error())
-	}
-	c.Status(http.StatusOK)
-}
-
-func validNumber(numberStr string) bool {
-	var sum int
-	alt := false
-	for i := len(numberStr) - 1; i >= 0; i-- {
-		num, err := strconv.Atoi(string(numberStr[i]))
-		if err != nil {
-			return false
-		}
-		if alt {
-			num *= 2
-			if num > 9 {
-				num -= 9
-			}
-		}
-		sum += num
-		alt = !alt
-	}
-	return sum%10 == 0
-}
-func (r *Repository) GetBalance(c *gin.Context) {
-	userName, exists := c.Get("username")
-	if !exists {
-		c.String(http.StatusUnauthorized, "The user is not authorized.")
-		return
-	}
-	current, withdrawn, err := r.Storage.Balance(userName.(string))
-	if err != nil {
-		c.String(http.StatusInternalServerError, "error receiving balance", err.Error())
-		return
-	}
-	current /= 10
-	withdrawn /= 10
-	balance := json2.NewBalance(current, withdrawn)
-	data, err := json2.PackingMoney(*balance)
-	if err != nil {
-		c.String(http.StatusInternalServerError, "Failed packing JSON")
-		return
-	}
-	c.Data(http.StatusOK, "application/json", data)
-}
-
+// Получение заказов
 func (r *Repository) GetOrders(c *gin.Context) {
 	userName, exists := c.Get("username")
 	if !exists {
@@ -169,6 +108,73 @@ func (r *Repository) GetOrders(c *gin.Context) {
 	}
 	c.Data(http.StatusOK, "application/json", data)
 }
+
+// Списание баллов
+func (r *Repository) PointsDebiting(c *gin.Context) {
+
+	userName, exists := c.Get("username")
+	if !exists {
+		c.String(http.StatusUnauthorized, "The user is not authorized.")
+		return
+	}
+	data := c.Request.Body
+	orderPoints, err := json2.UnpackingOrderPointsJSON(data)
+	if err != nil {
+		c.String(http.StatusUnprocessableEntity, err.Error())
+	}
+	err = r.Storage.ChangeLoyaltyPoints(userName.(string), orderPoints.Order, orderPoints.Sum)
+	if err != nil {
+		c.String(domain.StatusDetermination(err), err.Error())
+	}
+	c.Status(http.StatusOK)
+}
+
+// Проверка номера на алгоритм Луна
+func validNumber(numberStr string) bool {
+	var sum int
+	alt := false
+	for i := len(numberStr) - 1; i >= 0; i-- {
+		num, err := strconv.Atoi(string(numberStr[i]))
+		if err != nil {
+			return false
+		}
+		if alt {
+			num *= 2
+			if num > 9 {
+				num -= 9
+			}
+		}
+		sum += num
+		alt = !alt
+	}
+	return sum%10 == 0
+}
+
+// Получение баланса пользователем
+func (r *Repository) GetBalance(c *gin.Context) {
+	userName, exists := c.Get("username")
+	if !exists {
+		c.String(http.StatusUnauthorized, "The user is not authorized.")
+		return
+	}
+	current, withdrawn, err := r.Storage.Balance(userName.(string))
+	if err != nil {
+		c.String(http.StatusInternalServerError, "error receiving balance", err.Error())
+		return
+	}
+	current /= 10
+	withdrawn /= 10
+	balance := json2.NewBalance(current, withdrawn)
+
+	data, err := json2.PackingMoney(*balance)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Failed packing JSON")
+		return
+	}
+	c.Data(http.StatusOK, "application/json", data)
+}
+
+// Загрузка номера заказа
 func (r *Repository) Loading(c *gin.Context) {
 	if c.GetHeader("Content-Type") != "text/plain" {
 		return
@@ -211,11 +217,14 @@ func (r *Repository) Loading(c *gin.Context) {
 	}
 	c.String(http.StatusAccepted, "The new order number has been accepted for processing;")
 }
+
+// Аутенфикация пользователя
 func (r *Repository) Authentication(c *gin.Context) {
 	if c.GetHeader("Content-Type") != "application/json" {
 		return
 	}
-	user, err := json2.UnpackingUserJSON(c)
+	data := c.Request.Body
+	user, err := json2.UnpackingUserJSON(data)
 	if err != nil {
 		c.String(http.StatusBadRequest, err.Error())
 	}
@@ -236,6 +245,7 @@ func (r *Repository) Authentication(c *gin.Context) {
 
 }
 
+// Получение данных о заказе, если статус 200, распаковка их и отправка в канал result. Возвращает статус заказа
 func FetchOrder(orderNumber string, wgResults *sync.WaitGroup, resultsChan chan<- json2.OrderResponse, apiURL string) int {
 	defer wgResults.Done()
 
@@ -262,6 +272,7 @@ func FetchOrder(orderNumber string, wgResults *sync.WaitGroup, resultsChan chan<
 	return http.StatusOK
 }
 
+// Идёт по номерам в канале orderNumbers. С этим номером идёт в чёрный ящик. Если статус 429, то преккращает работу на 1 минуту
 func worker(orderNumbers chan string, wg *sync.WaitGroup, resultsChan chan<- json2.OrderResponse, apiURL string, stopChan chan struct{}) {
 	for orderNumber := range orderNumbers {
 		wg.Add(1)
@@ -284,6 +295,7 @@ func worker(orderNumbers chan string, wg *sync.WaitGroup, resultsChan chan<- jso
 						stopChan <- struct{}{}
 					} else {
 						log.Printf("Order processing error %s: %d", orderNumber, status)
+						orderNumbers <- orderNumber
 						return
 					}
 				}
@@ -292,6 +304,7 @@ func worker(orderNumbers chan string, wg *sync.WaitGroup, resultsChan chan<- jso
 	}
 }
 
+// Обращается к "черному ящику" за данными о заказе и отправку их в БД
 func (r *Repository) WorkingWithLoyaltyCalculationService(apiURL string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var wg sync.WaitGroup
