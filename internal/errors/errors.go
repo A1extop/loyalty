@@ -12,6 +12,7 @@ var (
 	ErrUnprocessableEntity = errors.New("unprocessable entity") //
 	ErrTooManyRequests     = errors.New("too many requests")
 	ErrPaymentRequired     = errors.New("status Payment Required")
+	ErrNotFound            = errors.New("status Payment Required")
 )
 
 func StatusDetermination(err error) int {
@@ -33,6 +34,9 @@ func StatusDetermination(err error) int {
 		}
 		if errors.Is(err, ErrPaymentRequired) {
 			return http.StatusPaymentRequired
+		}
+		if errors.Is(err, ErrNotFound) {
+			return http.StatusNotFound
 		}
 
 	}
