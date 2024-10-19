@@ -1,17 +1,14 @@
 package http
 
 import (
-	"net/http"
-
 	"fmt"
 	"io"
 	"log"
-	"runtime"
+	"net/http"
 	"strconv"
-	"sync"
 	"time"
 
-	"github.com/A1extop/loyalty/internal/domain"
+	errors2 "github.com/A1extop/loyalty/internal/errors"
 	json2 "github.com/A1extop/loyalty/internal/json"
 	jwt1 "github.com/A1extop/loyalty/internal/jwt"
 	"github.com/A1extop/loyalty/internal/store"
@@ -51,16 +48,67 @@ func (r *Repository) Register(c *gin.Context) {
 	}
 	err = r.Storage.AddUsers(user.Login, "secretKey", user.Password)
 	if err != nil {
-		c.String(domain.StatusDetermination(err), err.Error())
+		c.String(errors2.StatusDetermination(err), err.Error())
 	}
 	token, err := jwt1.GenerateJWT(user.Login)
 	if err != nil {
-		c.String(domain.StatusDetermination(err), err.Error())
+		c.String(errors2.StatusDetermination(err), err.Error())
 		return
 	}
 	time := 24 * time.Hour
 	SetAuthCookie(c, "auth_token", token, time)
 	c.String(http.StatusOK, "user successfully registered")
+}
+
+// Обработка заказов
+func processOrder(r *Repository, order string, systemAddr string) error {
+	client := &http.Client{
+		Timeout: 3 * time.Second,
+	}
+
+	url := fmt.Sprintf(systemAddr, "/api/orders/%s", order)
+	resp, err := client.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	var orderResp *json2.OrderResponse2
+	if resp.StatusCode == http.StatusOK && resp.Header.Get(" Content-Type") == "application/json" {
+		orderResp, err = json2.UnpackingSystemResponse(resp.Body)
+		if err != nil {
+		}
+	}
+
+	err = r.Storage.UpdateOrderInDB(order, orderResp.Status, int(*orderResp.Accrual)*100)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Взаимодействие с системой расчёта начислений
+func (r *Repository) InteractionWithCalculationSystem(ticker *time.Ticker, systemAddr string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		for {
+			select {
+			case <-ticker.C:
+				// Получаем заказы для обработки
+				orders, err := r.Storage.GetOrdersForProcessing() // похоже на правду))
+				if err != nil {
+					continue
+				}
+
+				// Обрабатываем каждый заказ по очереди
+				for _, order := range orders {
+					err := processOrder(r, order, systemAddr)
+					if err != nil {
+						log.Printf("Error processing order %s: %v\n", order, err)
+					}
+				}
+			}
+		}
+	}
 }
 
 // Получение информации о выводе средств
@@ -125,7 +173,7 @@ func (r *Repository) PointsDebiting(c *gin.Context) {
 	}
 	err = r.Storage.ChangeLoyaltyPoints(userName.(string), orderPoints.Order, orderPoints.Sum)
 	if err != nil {
-		c.String(domain.StatusDetermination(err), err.Error())
+		c.String(errors2.StatusDetermination(err), err.Error())
 		return
 	}
 	c.Status(http.StatusOK)
@@ -199,7 +247,7 @@ func (r *Repository) Loading(c *gin.Context) {
 
 	exists, err = r.Storage.CheckUserOrders(login, numberString)
 	if err != nil {
-		c.String(domain.StatusDetermination(err), err.Error())
+		c.String(errors2.StatusDetermination(err), err.Error())
 	}
 	if exists {
 		c.String(http.StatusOK, "Everything is fine")
@@ -207,7 +255,7 @@ func (r *Repository) Loading(c *gin.Context) {
 	}
 	err = r.Storage.SendingData(login, numberString)
 	if err != nil {
-		c.String(domain.StatusDetermination(err), err.Error())
+		c.String(errors2.StatusDetermination(err), err.Error())
 		return
 	}
 	c.String(http.StatusAccepted, "The new order number has been accepted for processing;")
@@ -225,12 +273,12 @@ func (r *Repository) Authentication(c *gin.Context) {
 	}
 	err = r.Storage.CheckAvailability(user.Login, user.Password)
 	if err != nil {
-		domain.StatusDetermination(err)
+		errors2.StatusDetermination(err)
 
 	}
 	token, err := jwt1.GenerateJWT(user.Login)
 	if err != nil {
-		c.String(domain.StatusDetermination(err), err.Error())
+		c.String(errors2.StatusDetermination(err), err.Error())
 		return
 	}
 	time := 24 * time.Hour
@@ -238,101 +286,4 @@ func (r *Repository) Authentication(c *gin.Context) {
 
 	c.String(http.StatusOK, "user successfully authenticated")
 
-}
-
-// Получение данных о заказе, если статус 200, распаковка их и отправка в канал result. Возвращает статус заказа
-func FetchOrder(orderNumber string, wgResults *sync.WaitGroup, resultsChan chan<- json2.OrderResponse, apiURL string) int {
-	defer wgResults.Done()
-
-	resp, err := http.Get(fmt.Sprintf(apiURL, orderNumber))
-	if err != nil {
-		return http.StatusInternalServerError
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return resp.StatusCode
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return http.StatusInternalServerError
-	}
-
-	orderResponse, err := json2.UnpackingOrderResponseJSON(body)
-	if err != nil {
-		return http.StatusInternalServerError
-	}
-	resultsChan <- *orderResponse
-	return http.StatusOK
-}
-
-// Идёт по номерам в канале orderNumbers. С этим номером идёт в чёрный ящик. Если статус 429, то преккращает работу на 1 минуту
-func worker(orderNumbers chan string, wg *sync.WaitGroup, resultsChan chan<- json2.OrderResponse, apiURL string, stopChan chan struct{}) {
-	for orderNumber := range orderNumbers {
-		wg.Add(1)
-
-		go func(orderNumber string) {
-			defer wg.Done()
-
-			for {
-				select {
-				case <-stopChan:
-					time.Sleep(1 * time.Minute)
-					continue
-				default:
-					status := FetchOrder(orderNumber, wg, resultsChan, apiURL)
-
-					if status == http.StatusOK {
-						return
-					} else if status == http.StatusTooManyRequests {
-						log.Printf("Received status 429 for order %s, signal about suspension", orderNumber)
-						stopChan <- struct{}{}
-					} else {
-						log.Printf("Order processing error %s: %d", orderNumber, status)
-						orderNumbers <- orderNumber
-						return
-					}
-				}
-			}
-		}(orderNumber)
-	}
-}
-
-// Обращается к "черному ящику" за данными о заказе и отправку их в БД
-func (r *Repository) WorkingWithLoyaltyCalculationService(apiURL string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var wg sync.WaitGroup
-		numCPUs := runtime.NumCPU()
-
-		orderChan := make(chan string, 100)
-		resultsChan := make(chan json2.OrderResponse)
-		stopChan := make(chan struct{})
-
-		for i := 0; i < numCPUs; i++ {
-			go worker(orderChan, &wg, resultsChan, apiURL, stopChan)
-		}
-
-		go r.Storage.FetchAndUpdateOrderNumbers(orderChan)
-
-		go func() {
-			for result := range resultsChan {
-				if result.Status == "REGISTERED" || result.Status == "PROCESSING" {
-					orderChan <- result.Order
-				} else {
-					err := r.Storage.Send(result)
-					if err != nil {
-						log.Println("error sending DB")
-					}
-				}
-			}
-		}()
-
-		wg.Wait()
-		close(orderChan)
-		close(resultsChan)
-		close(stopChan)
-
-		c.JSON(http.StatusOK, gin.H{"message": "Calculation service completed"})
-	}
 }

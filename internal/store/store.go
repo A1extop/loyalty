@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/A1extop/loyalty/internal/domain"
+	errors2 "github.com/A1extop/loyalty/internal/errors"
 	"github.com/A1extop/loyalty/internal/hash"
 	json2 "github.com/A1extop/loyalty/internal/json"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -35,17 +35,71 @@ type Storage interface {
 	Balance(login string) (float64, float64, error)
 	//Проверяет, хватает ли баланса для списания средств. Если да, то идёт в loyalty_accounts, там изменяет текущий баланс клиента, изменяет также в таблице order_history accrual и withdrawals
 	ChangeLoyaltyPoints(login string, order string, num float64) error
-	//Получение заказов с нужными статусами и отправка их в канал
-	FetchAndUpdateOrderNumbers(orderChan chan<- string)
 	//Обновление данных в таблице
 	Send(result json2.OrderResponse) error
+	// Получение заказов со статусом, требующим обновления
+	GetOrdersForProcessing() ([]string, error)
+	//Обновление данных в таблице
+	UpdateOrderInDB(orderNumber, status string, accrual int) error
 }
 
+func (s *Store) UpdateOrderInDB(orderNumber, status string, accrual int) error {
+	tx, err := s.db.Begin()
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+	query := `UPDATE order_history SET status = $1, accrual = $2, processed_at = NOW() WHERE order_number = $3`
+
+	_, err = s.db.Exec(query, status, accrual, orderNumber)
+	if err != nil {
+		return err
+	}
+	var login string
+	query2 := `SELECT username FROM order_history WHERE order_number = $1`
+	err = tx.QueryRow(query2, orderNumber).Scan(&login)
+	if err != nil {
+		return err
+	}
+	query1 := `UPDATE loyalty_account SET accrual = accrual + $1 WHERE username = $2`
+	_, err = s.db.Exec(query1, status, accrual, orderNumber)
+	if err != nil {
+		return err
+	}
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// Получение заказов со статусом, требующим обновления
+func (s *Store) GetOrdersForProcessing() ([]string, error) {
+	query := `SELECT order_number FROM order_history WHERE status NOT IN ('PROCESSED', 'INVALID')`
+	rows, err := s.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var orders []string
+	for rows.Next() {
+		var orderNumber string
+		if err := rows.Scan(&orderNumber); err != nil {
+
+			return nil, err
+		}
+		orders = append(orders, orderNumber)
+	}
+
+	return orders, nil
+}
 func (s *Store) SendingData(login string, number string) error {
 	query := `INSERT INTO order_history  (username, order_number) VALUES ($1, $2)`
 	_, err := s.db.Exec(query, login, number)
 	if err != nil {
-		return errors.Join(err, domain.ErrInternal)
+		return errors.Join(err, errors2.ErrInternal)
 	}
 	return nil
 }
@@ -117,12 +171,12 @@ func (s *Store) CheckUserOrders(login string, num string) (bool, error) {
 		if errors.Is(err, sql.ErrNoRows) { //её нет тогда false проверяется и даёт зарегать
 			return false, nil
 		}
-		return false, errors.Join(err, domain.ErrInternal)
+		return false, errors.Join(err, errors2.ErrInternal)
 	}
 	if login == username {
 		return true, nil // есть и при этом у этого пользователя
 	}
-	return false, errors.Join(errors.New("Conflict"), domain.ErrConflict)
+	return false, errors.Join(errors.New("Conflict"), errors2.ErrConflict)
 }
 
 func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) error {
@@ -139,13 +193,13 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) err
 	query := `SELECT current FROM loyalty_accounts WHERE username = $1`
 	err = s.db.QueryRow(query, login).Scan(&balance)
 	if err != nil {
-		return errors.Join(err, domain.ErrInternal)
+		return errors.Join(err, errors2.ErrInternal)
 	}
 	balanceFloat := float64(balance)
 	balanceFloat /= 100
 
 	if balanceFloat-num < 0 {
-		return errors.Join(errors.New("there are insufficient funds in the account"), domain.ErrPaymentRequired)
+		return errors.Join(errors.New("there are insufficient funds in the account"), errors2.ErrPaymentRequired)
 	}
 
 	query = `SELECT withdrawals FROM order_history WHERE username = $1 AND order_number = $2`
@@ -153,31 +207,31 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) err
 	row := tx.QueryRow(query, login, order)
 	err = row.Scan(&withdrawals)
 	if err != nil {
-		return errors.Join(err, domain.ErrInternal)
+		return errors.Join(err, errors2.ErrInternal)
 
 	}
 	currentBalance := balanceFloat - num
 	withdrawalsFloat := float64(withdrawals)
 
 	if withdrawalsFloat != 0.0 {
-		return errors.Join(errors.New("there has already been a write-off for this order"), domain.ErrUnprocessableEntity) //проверка здесь происходит на то, не списывались ли в счёт этого заказа уже баллы, возвращаю 422, но не уверен
+		return errors.Join(errors.New("there has already been a write-off for this order"), errors2.ErrUnprocessableEntity) //проверка здесь происходит на то, не списывались ли в счёт этого заказа уже баллы, возвращаю 422, но не уверен
 	}
 
 	_, err = tx.Exec("UPDATE order_history SET withdrawals  = $1 WHERE username = $2 AND order_number = $3", num*100, login, order)
 	if err != nil {
-		return errors.Join(err, domain.ErrInternal)
+		return errors.Join(err, errors2.ErrInternal)
 	}
 	_, err = tx.Exec("UPDATE loyalty_accounts SET current = $1 WHERE username = $2", currentBalance*100, login)
 	if err != nil {
-		return errors.Join(err, domain.ErrInternal)
+		return errors.Join(err, errors2.ErrInternal)
 	}
 	_, err = tx.Exec("UPDATE loyalty_accounts SET withdrawn = withdrawn + $1 WHERE username = $2", num*100, login)
 	if err != nil {
-		return errors.Join(err, domain.ErrInternal)
+		return errors.Join(err, errors2.ErrInternal)
 	}
 	err = tx.Commit()
 	if err != nil {
-		return errors.Join(err, domain.ErrInternal)
+		return errors.Join(err, errors2.ErrInternal)
 	}
 
 	return nil
@@ -189,19 +243,19 @@ func (s *Store) AddUsers(login string, key string, password string) error {
 	query := "SELECT EXISTS(SELECT 1 FROM users WHERE username=$1)"
 	err := s.db.QueryRow(query, login).Scan(&exists)
 	if err != nil {
-		return errors.Join(err, domain.ErrInternal)
+		return errors.Join(err, errors2.ErrInternal)
 	}
 
 	if exists {
-		return errors.Join(errors.New("this login is already taken)"), domain.ErrConflict)
+		return errors.Join(errors.New("this login is already taken)"), errors2.ErrConflict)
 	}
 	hashedPassword, err := hash.HashPassword(password, key)
 	if err != nil {
-		return errors.Join(err, domain.ErrInternal)
+		return errors.Join(err, errors2.ErrInternal)
 	}
 	tx, err := s.db.Begin()
 	if err != nil {
-		return errors.Join(err, domain.ErrInternal)
+		return errors.Join(err, errors2.ErrInternal)
 	}
 	defer func() {
 		if err != nil {
@@ -213,13 +267,13 @@ func (s *Store) AddUsers(login string, key string, password string) error {
 	insertUserQuery := "INSERT INTO users (username, password_hash) VALUES ($1, $2)"
 	_, err = tx.Exec(insertUserQuery, login, hashedPassword)
 	if err != nil {
-		return errors.Join(err, domain.ErrInternal)
+		return errors.Join(err, errors2.ErrInternal)
 	}
 
 	insertLoyaltyAccountQuery := "INSERT INTO loyalty_accounts (username) VALUES ($1)"
 	_, err = tx.Exec(insertLoyaltyAccountQuery, login)
 	if err != nil {
-		return errors.Join(err, domain.ErrInternal)
+		return errors.Join(err, errors2.ErrInternal)
 	}
 	return nil
 }
@@ -229,70 +283,24 @@ func (s *Store) CheckAvailability(login string, password string) error {
 	query := "SELECT EXISTS(SELECT 1 FROM users WHERE username=$1)"
 	err := s.db.QueryRow(query, login).Scan(&exists)
 	if err != nil {
-		return errors.Join(err, domain.ErrInternal)
+		return errors.Join(err, errors2.ErrInternal)
 	}
 	if !exists {
-		return errors.Join(errors.New("incorrect login/password pair"), domain.ErrUnauthorized)
+		return errors.Join(errors.New("incorrect login/password pair"), errors2.ErrUnauthorized)
 	}
 	hashedPassword, err := hash.HashPassword(password, "secretKey") // подумаю как протянуть ещё!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	if err != nil {
-		return errors.Join(err, domain.ErrInternal)
+		return errors.Join(err, errors2.ErrInternal)
 	}
 	query1 := "SELECT EXISTS(SELECT 1 FROM users WHERE username=$1 AND password_hash =$2)"
 	err = s.db.QueryRow(query1, login, hashedPassword).Scan(&exists)
 	if err != nil {
-		return errors.Join(err, domain.ErrInternal)
+		return errors.Join(err, errors2.ErrInternal)
 	}
 	if !exists {
-		return errors.Join(errors.New("incorrect login/password pair"), domain.ErrUnauthorized)
+		return errors.Join(errors.New("incorrect login/password pair"), errors2.ErrUnauthorized)
 	}
 	return nil
-}
-
-// Проверяет статусы и заказов, если 'REGISTERED', 'PROCESSING', то добавляет их в массив заказов и отправляет массив
-func FetchOrderNumbersFromDB(db *sql.DB) ([]string, error) {
-	query := `SELECT order_number 
-FROM order_history 
-WHERE status IN ('REGISTERED', 'PROCESSING') 
-   OR status IS NULL`
-	rows, err := db.Query(query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var orderNumbers []string
-	for rows.Next() {
-		var orderNumber string
-		if err := rows.Scan(&orderNumber); err != nil {
-			return nil, err
-		}
-		orderNumbers = append(orderNumbers, orderNumber)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return orderNumbers, nil
-}
-
-func (s *Store) FetchAndUpdateOrderNumbers(orderChan chan<- string) {
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		<-ticker.C
-
-		orderNumbers, err := FetchOrderNumbersFromDB(s.db)
-		if err != nil {
-			log.Printf("Ошибка при получении номеров заказов: %v", err)
-			continue
-		}
-
-		for _, orderNumber := range orderNumbers {
-			orderChan <- orderNumber
-		}
-	}
 }
 
 func (s *Store) Send(result json2.OrderResponse) error {

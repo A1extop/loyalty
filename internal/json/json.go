@@ -41,6 +41,11 @@ type OrderResponse1 struct {
 	Accrual  float64   `json:"accrual,omitempty"`
 	Uploaded time.Time `json:"uploaded_at"`
 }
+type OrderResponse2 struct {
+	Order   string   `json:"order"`
+	Status  string   `json:"status"`
+	Accrual *float64 `json:"accrual,omitempty"`
+}
 
 func NewOrderPoints() *OrderPoints {
 	return &OrderPoints{}
@@ -126,6 +131,14 @@ func PackingMoney(balance Balance) ([]byte, error) {
 func UnpackingOrderResponseJSON(body []byte) (*OrderResponse, error) {
 	var orderResponse *OrderResponse
 	if err := json.Unmarshal(body, &orderResponse); err != nil {
+		return nil, err
+	}
+	return orderResponse, nil
+}
+
+func UnpackingSystemResponse(data io.ReadCloser) (*OrderResponse2, error) {
+	var orderResponse *OrderResponse2
+	if err := json.NewDecoder(data).Decode(orderResponse); err != nil {
 		return nil, err
 	}
 	return orderResponse, nil

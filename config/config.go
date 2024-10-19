@@ -3,12 +3,14 @@ package config
 import (
 	"flag"
 	"os"
+	"strconv"
 )
 
 type Parameters struct {
 	AddressHTTP string
 	AddrDB      string
 	SystemAddr  string
+	Interval    int
 }
 
 func NewParameters() *Parameters {
@@ -18,11 +20,13 @@ func (p *Parameters) getParameters() {
 	addr := flag.String("a", "localhost:8080", "address HTTP")
 	addrDB := flag.String("d", "", "String with database connection address")
 	systemAddr := flag.String("r", "", "system address")
+	interval := flag.Int("p", 2, "how often will I contact the database?")
 
 	flag.Parse()
 	p.AddressHTTP = *addr
 	p.AddrDB = *addrDB
 	p.SystemAddr = *systemAddr
+	p.Interval = *interval
 
 }
 func (p *Parameters) getParametersEnvironmentVariables() {
@@ -38,6 +42,11 @@ func (p *Parameters) getParametersEnvironmentVariables() {
 
 	if systemAddr != "" {
 		p.SystemAddr = systemAddr
+	}
+	intervalStr := os.Getenv("INTERVAL")
+	interval, _ := strconv.Atoi(intervalStr)
+	if intervalStr != "" {
+		p.Interval = interval
 	}
 }
 

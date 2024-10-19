@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/A1extop/loyalty/config"
 	http2 "github.com/A1extop/loyalty/internal/http"
@@ -23,9 +24,8 @@ func main() {
 		psql.CreateOrConnectTable(db)
 	}
 	router := http2.NewRouter(repos)
-	if parameters.SystemAddr != "" {
-		go repos.WorkingWithLoyaltyCalculationService(parameters.SystemAddr)
-	}
+	ticker := time.NewTicker(time.Duration(parameters.Interval))
+	go repos.InteractionWithCalculationSystem(ticker, parameters.SystemAddr)
 	log.Printf("Starting server on port %s", parameters.AddressHTTP)
 	err = http.ListenAndServe(parameters.AddressHTTP, router)
 	if err != nil {
