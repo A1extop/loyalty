@@ -76,6 +76,7 @@ func processOrder(r *Repository, order string, systemAddr string) error {
 	if resp.StatusCode == http.StatusOK && resp.Header.Get(" Content-Type") == "application/json" {
 		orderResp, err = json2.UnpackingSystemResponse(resp.Body)
 		if err != nil {
+			return err
 		}
 	}
 
@@ -90,16 +91,14 @@ func processOrder(r *Repository, order string, systemAddr string) error {
 // Взаимодействие с системой расчёта начислений
 func (r *Repository) InteractionWithCalculationSystem(ticker *time.Ticker, systemAddr string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		for {
-			select {
-			case <-ticker.C:
-				// Получаем заказы для обработки
-				orders, err := r.Storage.GetOrdersForProcessing() // похоже на правду))
+		{
+			for range ticker.C {
+				orders, err := r.Storage.GetOrdersForProcessing()
 				if err != nil {
+					log.Printf("Error fetching orders for processing: %v\n", err)
 					continue
 				}
 
-				// Обрабатываем каждый заказ по очереди
 				for _, order := range orders {
 					err := processOrder(r, order, systemAddr)
 					if err != nil {
