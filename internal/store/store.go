@@ -140,7 +140,7 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) err
 		}
 	}()
 	var balance int
-	query := `SELECT balance FROM loyalty_accounts WHERE username = $1`
+	query := `SELECT current FROM loyalty_accounts WHERE username = $1`
 	err = s.db.QueryRow(query, login).Scan(&balance)
 	if err != nil {
 		return errors.Join(err, domain.ErrInternal)
@@ -159,14 +159,14 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) err
 	}
 	currentBalance := balanceFloat - num
 	withdrawalsFloat := float64(withdrawals)
-	if withdrawalsFloat != 100.0 {
+	if withdrawalsFloat != 0.0 {
 		return errors.Join(errors.New("there has already been a write-off for this order"), domain.ErrUnprocessableEntity) //проверка здесь происходит на то, не списывались ли в счёт этого заказа уже баллы, возвращаю 422, но не уверен
 	}
 	_, err = tx.Exec("UPDATE order_history SET withdrawals  = $1 WHERE username = $2", num, login)
 	if err != nil {
 		return errors.Join(err, domain.ErrInternal)
 	}
-	_, err = tx.Exec("UPDATE loyalty_accounts SET balance = $1 WHERE username = $2", currentBalance, login)
+	_, err = tx.Exec("UPDATE loyalty_accounts SET current = $1 WHERE username = $2", currentBalance, login)
 	if err != nil {
 		return errors.Join(err, domain.ErrInternal)
 	}
@@ -291,7 +291,7 @@ func (s *Store) FetchAndUpdateOrderNumbers(orderChan chan<- string) {
 }
 
 func (s *Store) Send(result json2.OrderResponse) error {
-	query := `UPDATE order_history SET status  = $1, accrual = $2 WHERE  = order_number = $3`
+	query := `UPDATE order_history SET status  = $1, accrual = accrual+ $2 WHERE  = order_number = $3`
 
 	tx, err := s.db.Begin()
 	go func() {
@@ -302,12 +302,12 @@ func (s *Store) Send(result json2.OrderResponse) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(query, result.Status, result.Accrual, result.Order)
+	_, err = tx.Exec(query, result.Status, result.Accrual*100, result.Order)
 	if err != nil {
 		return err
 	}
 	query1 := `UPDATE loyalty_accounts SET current = current + $1 WHERE order_number = $2`
-	_, err = tx.Exec(query1, result.Accrual, result.Order)
+	_, err = tx.Exec(query1, result.Accrual*100, result.Order)
 	err = tx.Commit()
 	if err != nil {
 		return err
