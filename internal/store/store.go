@@ -76,9 +76,9 @@ func (s *Store) Orders(login string) ([]json2.History, error) {
 	defer rows.Close()
 	var withdrawals int
 	var order string
-	var status string
+	var status sql.NullString
 	var accrual int
-	var timeStamp time.Time
+	var timeStamp sql.NullTime
 
 	for rows.Next() {
 		if err := rows.Scan(&order, &status, &accrual, &withdrawals, &timeStamp); err != nil {
@@ -86,17 +86,22 @@ func (s *Store) Orders(login string) ([]json2.History, error) {
 		}
 		accFloat := float64(accrual) / 100
 		withdrawFloat := float64(withdrawals) / 100
-		if status == "" {
-			status = "INVALID"
+		statusValue := "PROCESSING"
+		if status.Valid {
+			statusValue = status.String
+		}
+		var timeStampValue time.Time
+		if timeStamp.Valid {
+			timeStampValue = timeStamp.Time
 		}
 
 		history := json2.History{
 			Order:       order,
 			Username:    login,
-			Status:      status,
+			Status:      statusValue,
 			Accrual:     accFloat,
 			Withdrawals: withdrawFloat,
-			Uploaded:    timeStamp,
+			Uploaded:    timeStampValue,
 		}
 		slHistory = append(slHistory, history)
 	}
