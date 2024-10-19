@@ -121,10 +121,12 @@ func (r *Repository) PointsDebiting(c *gin.Context) {
 	orderPoints, err := json2.UnpackingOrderPointsJSON(data)
 	if err != nil {
 		c.String(http.StatusUnprocessableEntity, err.Error())
+		return
 	}
 	err = r.Storage.ChangeLoyaltyPoints(userName.(string), orderPoints.Order, orderPoints.Sum)
 	if err != nil {
 		c.String(domain.StatusDetermination(err), err.Error())
+		return
 	}
 	c.Status(http.StatusOK)
 }
@@ -162,8 +164,6 @@ func (r *Repository) GetBalance(c *gin.Context) {
 		c.String(http.StatusInternalServerError, "error receiving balance", err.Error())
 		return
 	}
-	current /= 10
-	withdrawn /= 10
 	balance := json2.NewBalance(current, withdrawn)
 
 	data, err := json2.PackingMoney(*balance)

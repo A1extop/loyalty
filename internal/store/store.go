@@ -25,7 +25,7 @@ type Storage interface {
 	AddUsers(login string, key string, password string) error
 	//Проверяет наличие и корректность данных, отправленынх клиентом в таблице
 	CheckAvailability(login string, password string) error
-
+	//Отправление заказа
 	SendingData(login string, number string) error
 	//Проверка на наличие номера в таблице
 	CheckNumber(number string) error
@@ -44,7 +44,7 @@ type Storage interface {
 }
 
 func (s *Store) SendingData(login string, number string) error {
-	query := `INSERT INTO orders (username, order_number) VALUES ($1, $2)`
+	query := `INSERT INTO order_history  (username, order_number) VALUES ($1, $2)` /////////////////////////////////////
 	_, err := s.db.Exec(query, login, number)
 	if err != nil {
 		return errors.Join(err, domain.ErrInternal)
@@ -60,21 +60,20 @@ func (s *Store) Balance(login string) (float64, float64, error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	currentFloat := float64(current) / 10
-	withdrawnFloat := float64(withdrawn) / 10
+	currentFloat := float64(current) / 100
+	withdrawnFloat := float64(withdrawn) / 100
 	return currentFloat, withdrawnFloat, nil
 }
 
 func (s *Store) Orders(login string) ([]json2.History, error) {
 	slHistory := make([]json2.History, 0)
-	query := `SELECT history_id, order_number, status, accrual, withdrawals, processed_at 
+	query := `SELECT order_number, status, accrual, withdrawals, processed_at 
               FROM order_history WHERE username  = $1 ORDER BY processed_at DESC`
 	rows, err := s.db.Query(query, login)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var historyID int
 	var withdrawals int
 	var order string
 	var status string
@@ -82,14 +81,13 @@ func (s *Store) Orders(login string) ([]json2.History, error) {
 	var timeStamp time.Time
 
 	for rows.Next() {
-		if err := rows.Scan(&historyID, &order, &status, &accrual, &withdrawals, &timeStamp); err != nil {
+		if err := rows.Scan(&order, &status, &accrual, &withdrawals, &timeStamp); err != nil {
 			continue
 		}
-		accFloat := float64(accrual) / 10
-		withdrawFloat := float64(withdrawals) / 10
+		accFloat := float64(accrual) / 100
+		withdrawFloat := float64(withdrawals) / 100
 
 		history := json2.History{
-			HistoryID:   historyID,
 			Order:       order,
 			Username:    login,
 			Status:      status,
@@ -106,7 +104,7 @@ func (s *Store) Orders(login string) ([]json2.History, error) {
 }
 
 func (s *Store) CheckUserOrders(login string, num string) (bool, error) {
-	query := `SELECT EXISTS(SELECT 1 FROM orders WHERE username = $1 AND order_number = $2)`
+	query := `SELECT EXISTS(SELECT 1 FROM order_history  WHERE username = $1 AND order_number = $2)` ////////////////////////////////  CheckUserOrders и CheckNumber как будто можно совместить
 
 	var exists bool
 	err := s.db.QueryRow(query, login, num).Scan(&exists)
@@ -118,7 +116,7 @@ func (s *Store) CheckUserOrders(login string, num string) (bool, error) {
 
 func (s *Store) CheckNumber(number string) error {
 	var exists bool
-	query := "SELECT EXISTS(SELECT 1 FROM orders WHERE order_number=$1)"
+	query := "SELECT EXISTS(SELECT 1 FROM order_history  WHERE order_number=$1)" /////////////////////////////////////
 	err := s.db.QueryRow(query, number).Scan(&exists)
 	if err != nil {
 		return errors.Join(err, domain.ErrInternal)
@@ -131,7 +129,7 @@ func (s *Store) CheckNumber(number string) error {
 }
 
 func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) error {
-	num *= 10
+	num *= 100
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -161,7 +159,7 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) err
 	}
 	currentBalance := balanceFloat - num
 	withdrawalsFloat := float64(withdrawals)
-	if withdrawalsFloat != 10.0 {
+	if withdrawalsFloat != 100.0 {
 		return errors.Join(errors.New("there has already been a write-off for this order"), domain.ErrUnprocessableEntity) //проверка здесь происходит на то, не списывались ли в счёт этого заказа уже баллы, возвращаю 422, но не уверен
 	}
 	_, err = tx.Exec("UPDATE order_history SET withdrawals  = $1 WHERE username = $2", num, login)
@@ -248,7 +246,10 @@ func (s *Store) CheckAvailability(login string, password string) error {
 
 // Проверяет статусы и заказов, если 'REGISTERED', 'PROCESSING', то добавляет их в массив заказов и отправляет массив
 func FetchOrderNumbersFromDB(db *sql.DB) ([]string, error) {
-	query := `SELECT order_number FROM order_history WHERE status IN ('REGISTERED', 'PROCESSING')`
+	query := `SELECT order_number 
+FROM order_history 
+WHERE status IN ('REGISTERED', 'PROCESSING') 
+   OR status IS NULL`
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
@@ -329,48 +330,30 @@ func CreateOrConnectTable(db *sql.DB) {
 	}
 	if !exists {
 		_, err = db.Exec(`CREATE TABLE users (
-        user_id SERIAL PRIMARY KEY,
-        username VARCHAR(255) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL
-    );`)
+    username VARCHAR(255) PRIMARY KEY,
+    password_hash VARCHAR(255) NOT NULL
+);`)
 		if err != nil {
 			log.Printf("database creation error: %v", err)
 		}
 	}
-	exists, err = tableExists(db, "orders")
-	if err != nil {
-		log.Fatal("dB error")
-	}
-	if !exists {
-		_, err = db.Exec(`CREATE TABLE orders (
-    order_id SERIAL PRIMARY KEY,
-    username VARCHAR(255) NOT NULL,
-    order_number VARCHAR(255) UNIQUE NOT NULL,
-     FOREIGN KEY (username) REFERENCES users(username)
-);
-`)
-		if err != nil {
-			log.Fatal("dB error")
-		}
-	}
+
 	exists, err = tableExists(db, "order_history")
 	if err != nil {
-		log.Fatal("dB error")
+		log.Fatal("dB error 1:", err)
 	}
 	if !exists {
 		_, err = db.Exec(`CREATE TABLE order_history (
-			history_id SERIAL PRIMARY KEY,
 			order_number VARCHAR(255) NOT NULL,
 			username VARCHAR(255) NOT NULL,
-			status VARCHAR(20) NOT NULL,
-			accrual INTEGER  NOT NULL,
+			status VARCHAR(20),
+			accrual INTEGER  DEFAULT 0,
 			withdrawals INTEGER DEFAULT 0,
 			processed_at TIMESTAMP,
-			FOREIGN KEY (order_number) REFERENCES orders(order_number),
 			FOREIGN KEY (username) REFERENCES users(username)
 		);`)
 		if err != nil {
-			log.Fatal("dB error")
+			log.Fatal("dB error 2:", err)
 		}
 	}
 	exists, err = tableExists(db, "loyalty_accounts")
@@ -379,14 +362,13 @@ func CreateOrConnectTable(db *sql.DB) {
 	}
 	if !exists {
 		_, err = db.Exec(`CREATE TABLE loyalty_accounts (
-    account_id SERIAL PRIMARY KEY,
-    username VARCHAR(255) NOT NULL,
+    username VARCHAR(255) PRIMARY KEY,
     current INTEGER DEFAULT 0,
 	withdrawn INTEGER DEFAULT 0,
     FOREIGN KEY (username) REFERENCES users(username)
 );`)
 		if err != nil {
-			log.Fatal("dB error")
+			log.Fatal("dB error 3:", err)
 		}
 	}
 }

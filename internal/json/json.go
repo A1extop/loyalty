@@ -13,7 +13,6 @@ type UserCredentials struct {
 }
 
 type History struct {
-	HistoryID   int       `json:"id"`
 	Order       string    `json:"order"`
 	Username    string    `json:"username"`
 	Status      string    `json:"status"`
