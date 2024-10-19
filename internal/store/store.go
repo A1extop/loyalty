@@ -197,7 +197,7 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) err
 	err = tx.QueryRow(query, login).Scan(&balance)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return errors.Join(errors.New("account not found"), errors2.ErrNotFound)
+			return errors.Join(errors.New("account not found"), errors2.ErrConflict)
 		}
 		return errors.Join(err, errors2.ErrInternal)
 	}
