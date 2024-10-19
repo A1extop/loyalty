@@ -27,9 +27,7 @@ type Storage interface {
 	CheckAvailability(login string, password string) error
 	//Отправление заказа
 	SendingData(login string, number string) error
-	//Проверка на наличие номера в таблице
-	CheckNumber(number string) error
-	//Проверка на наличие пользователя (есть вопрос,а нужен ли этот метод?)))
+	//Проверяет заказ, существует ли он и у кого находится
 	CheckUserOrders(login string, num string) (bool, error)
 	//Полученает данные с таблицы order_history, заворачивает данные в структуру и возвращает массив структур
 	Orders(login string) ([]json2.History, error)
@@ -112,28 +110,19 @@ func (s *Store) Orders(login string) ([]json2.History, error) {
 }
 
 func (s *Store) CheckUserOrders(login string, num string) (bool, error) {
-	query := `SELECT EXISTS(SELECT 1 FROM order_history  WHERE username = $1 AND order_number = $2)` ////////////////////////////////  CheckUserOrders и CheckNumber как будто можно совместить
-
-	var exists bool
-	err := s.db.QueryRow(query, login, num).Scan(&exists)
+	query := `SELECT username FROM order_history WHERE order_number = $1`
+	var username string
+	err := s.db.QueryRow(query, num).Scan(&username)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) { //её нет тогда false проверяется и даёт зарегать
+			return false, nil
+		}
 		return false, errors.Join(err, domain.ErrInternal)
 	}
-	return exists, nil
-}
-
-func (s *Store) CheckNumber(number string) error {
-	var exists bool
-	query := "SELECT EXISTS(SELECT 1 FROM order_history  WHERE order_number=$1)" /////////////////////////////////////
-	err := s.db.QueryRow(query, number).Scan(&exists)
-	if err != nil {
-		return errors.Join(err, domain.ErrInternal)
+	if login == username {
+		return true, nil // есть и при этом у этого пользователя
 	}
-	if exists {
-
-		return errors.Join(errors.New("Conflict"), domain.ErrConflict)
-	}
-	return nil
+	return false, errors.Join(errors.New("Conflict"), domain.ErrConflict)
 }
 
 func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) error {

@@ -205,11 +205,6 @@ func (r *Repository) Loading(c *gin.Context) {
 		c.String(http.StatusOK, "Everything is fine")
 		return
 	}
-	err = r.Storage.CheckNumber(numberString)
-	if err != nil {
-		c.String(domain.StatusDetermination(err), err.Error())
-		return
-	}
 	err = r.Storage.SendingData(login, numberString)
 	if err != nil {
 		c.String(domain.StatusDetermination(err), err.Error())
