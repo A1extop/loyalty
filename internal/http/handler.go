@@ -79,7 +79,7 @@ func processOrder(r *Repository, order string, systemAddr string) error {
 			return err
 		}
 	}
-	if orderResp.Accrual == nil {
+	if orderResp == nil || orderResp.Accrual == nil {
 		return nil
 	}
 	sum := *orderResp.Accrual
