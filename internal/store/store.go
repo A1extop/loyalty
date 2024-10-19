@@ -129,7 +129,6 @@ func (s *Store) CheckNumber(number string) error {
 }
 
 func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) error {
-	num *= 100
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -146,12 +145,15 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) err
 		return errors.Join(err, domain.ErrInternal)
 	}
 	balanceFloat := float64(balance)
+	balanceFloat /= 100
+
 	if balanceFloat-num < 0 {
 		return errors.Join(errors.New("there are insufficient funds in the account"), domain.ErrPaymentRequired)
 	}
-	query = `SELECT withdrawals FROM order_history WHERE username = $1`
+
+	query = `SELECT withdrawals FROM order_history WHERE username = $1 AND order_number = $2`
 	var withdrawals int
-	row := tx.QueryRow(query, login)
+	row := tx.QueryRow(query, login, order)
 	err = row.Scan(&withdrawals)
 	if err != nil {
 		return errors.Join(err, domain.ErrInternal)
@@ -159,14 +161,20 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) err
 	}
 	currentBalance := balanceFloat - num
 	withdrawalsFloat := float64(withdrawals)
+
 	if withdrawalsFloat != 0.0 {
 		return errors.Join(errors.New("there has already been a write-off for this order"), domain.ErrUnprocessableEntity) //проверка здесь происходит на то, не списывались ли в счёт этого заказа уже баллы, возвращаю 422, но не уверен
 	}
-	_, err = tx.Exec("UPDATE order_history SET withdrawals  = $1 WHERE username = $2", num, login)
+
+	_, err = tx.Exec("UPDATE order_history SET withdrawals  = $1 WHERE username = $2 AND order_number = $3", num*100, login, order)
 	if err != nil {
 		return errors.Join(err, domain.ErrInternal)
 	}
-	_, err = tx.Exec("UPDATE loyalty_accounts SET current = $1 WHERE username = $2", currentBalance, login)
+	_, err = tx.Exec("UPDATE loyalty_accounts SET current = $1 WHERE username = $2", currentBalance*100, login)
+	if err != nil {
+		return errors.Join(err, domain.ErrInternal)
+	}
+	_, err = tx.Exec("UPDATE loyalty_accounts SET withdrawn = withdrawn + $1 WHERE username = $2", num*100, login)
 	if err != nil {
 		return errors.Join(err, domain.ErrInternal)
 	}
