@@ -44,7 +44,7 @@ type Storage interface {
 }
 
 func (s *Store) SendingData(login string, number string) error {
-	query := `INSERT INTO order_history  (username, order_number) VALUES ($1, $2)` /////////////////////////////////////
+	query := `INSERT INTO order_history  (username, order_number) VALUES ($1, $2)`
 	_, err := s.db.Exec(query, login, number)
 	if err != nil {
 		return errors.Join(err, domain.ErrInternal)
@@ -76,9 +76,9 @@ func (s *Store) Orders(login string) ([]json2.History, error) {
 	defer rows.Close()
 	var withdrawals int
 	var order string
-	var status sql.NullString
+	var status string
 	var accrual int
-	var timeStamp sql.NullTime
+	var timeStamp time.Time
 
 	for rows.Next() {
 		if err := rows.Scan(&order, &status, &accrual, &withdrawals, &timeStamp); err != nil {
@@ -86,21 +86,17 @@ func (s *Store) Orders(login string) ([]json2.History, error) {
 		}
 		accFloat := float64(accrual) / 100
 		withdrawFloat := float64(withdrawals) / 100
-		statusValue := "INVALID" // Значение по умолчанию для NULL
-		if status.Valid {
-			statusValue = status.String
+		if status == "" {
+			status = "INVALID"
 		}
-		if timeStamp.Valid {
-			statusValue = status.String
-		}
-		var timeStampValue time.Time
+
 		history := json2.History{
 			Order:       order,
 			Username:    login,
-			Status:      statusValue,
+			Status:      status,
 			Accrual:     accFloat,
 			Withdrawals: withdrawFloat,
-			Uploaded:    timeStampValue,
+			Uploaded:    timeStamp,
 		}
 		slHistory = append(slHistory, history)
 	}
@@ -361,7 +357,7 @@ func CreateOrConnectTable(db *sql.DB) {
 		_, err = db.Exec(`CREATE TABLE order_history (
 			order_number VARCHAR(255) NOT NULL,
 			username VARCHAR(255) NOT NULL,
-			status VARCHAR(20),
+			status VARCHAR(20) DEFAULT '',
 			accrual INTEGER  DEFAULT 0,
 			withdrawals INTEGER DEFAULT 0,
 			processed_at TIMESTAMP,
