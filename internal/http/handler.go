@@ -236,6 +236,7 @@ func (r *Repository) Loading(c *gin.Context) {
 		return
 	}
 	numberString := string(data)
+	log.Println(numberString)
 	ex := validNumber(numberString)
 	if !ex {
 		c.String(http.StatusUnprocessableEntity, "Invalid order number")
