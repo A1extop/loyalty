@@ -184,39 +184,51 @@ func (s *Store) CheckUserOrders(login string, num string) (bool, error) {
 	return false, errors.Join(errors.New("Conflict"), errors2.ErrConflict)
 }
 
-func (s *Store) ChangeLoyaltyPoints(login string, order string, sum float64) error {
-	tx, err := s.db.Begin()
+func (s *Store) ChangeLoyaltyPoints(username, orderNumber string, sum float64) error {
+	tx, err := s.db.Begin() // Начинаем транзакцию
 	if err != nil {
 		return err
 	}
+
 	defer func() {
-		if err != nil {
-			tx.Rollback()
+		if p := recover(); p != nil {
+			tx.Rollback() // Откатываем транзакцию в случае ошибки
+			panic(p)
+		} else if err != nil {
+			tx.Rollback() // Откатываем, если возникла ошибка
+		} else {
+			err = tx.Commit() // Фиксируем транзакцию
 		}
 	}()
+
+	// 1. Проверяем текущее количество баллов в loyalty_accounts
 	var current, withdrawn int
-	query := `SELECT current, withdrawn 
+	err = tx.QueryRow(`
+        SELECT current, withdrawn 
         FROM loyalty_accounts 
-        WHERE username = $1`
-	err = tx.QueryRow(query, login).Scan(&current, &withdrawn)
+        WHERE username = $1`, username).Scan(&current, &withdrawn)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return errors.Join(errors.New("account not found"), errors2.ErrInternal)
+			return errors.Join(errors.New("account not found"), errors2.ErrNotFound)
 		}
 		return errors.Join(err, errors2.ErrInternal)
 	}
-	balanceFloat := float64(current) / 100
 
-	if balanceFloat < sum {
+	currentFloat := float64(current) / 100
+	// 2. Проверяем, достаточно ли баллов для списания
+	if currentFloat < sum {
 		return errors.Join(errors.New("insufficient funds"), errors2.ErrPaymentRequired)
 	}
-	query1 := `SELECT withdrawals FROM order_history WHERE username = $1 AND order_number = $2`
+
+	// 3. Проверяем, что в order_history для указанного заказа withdrawals равно 0
 	var withdrawals int
-	row := tx.QueryRow(query1, login, order)
-	err = row.Scan(&withdrawals)
+	err = tx.QueryRow(`
+        SELECT withdrawals 
+        FROM order_history 
+        WHERE order_number = $1 AND username = $2`, orderNumber, username).Scan(&withdrawals)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return errors.Join(errors.New("order not found"), errors2.ErrInternal) //здесь появляется ошибка, которой быть не должно, не знаю, что с этим делать
+			return errors.Join(errors.New("order not found"), errors2.ErrNotFound) //здесь появляется ошибка, которой быть не должно, не знаю, что с этим делать
 		}
 		return errors.Join(err, errors2.ErrInternal)
 	}
@@ -225,17 +237,22 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, sum float64) err
 		return errors.Join(errors.New("there has already been a write-off for this order"), errors2.ErrUnprocessableEntity) //проверка здесь происходит на то, не списывались ли в счёт этого заказа уже баллы, возвращаю 422, но не уверен
 	}
 
-	_, err = tx.Exec("UPDATE order_history SET withdrawals = $1 WHERE username = $2 AND order_number = $3", sum*100, login, order)
+	// 4. Обновляем withdrawals в order_history и поля current и withdrawn в loyalty_accounts
+	_, err = tx.Exec(`
+        UPDATE order_history 
+        SET withdrawals = $1 
+        WHERE order_number = $2 AND username = $3`, sum*100, orderNumber, username)
 	if err != nil {
 		return errors.Join(err, errors2.ErrInternal)
 	}
 
-	newBalance := balanceFloat - sum
-	_, err = tx.Exec("UPDATE loyalty_accounts SET current = $1, withdrawn = withdrawn + $2 WHERE username = $3", newBalance*100, sum*100, login)
-	if err != nil {
-		return errors.Join(err, errors2.ErrInternal)
-	}
-	err = tx.Commit()
+	newCurrent := currentFloat - sum
+	newWithdrawn := float64(withdrawn) + sum
+
+	_, err = tx.Exec(`
+        UPDATE loyalty_accounts 
+        SET current = $1, withdrawn = $2 
+        WHERE username = $3`, newCurrent, newWithdrawn, username)
 	if err != nil {
 		return errors.Join(err, errors2.ErrInternal)
 	}
