@@ -184,7 +184,7 @@ func (s *Store) CheckUserOrders(login string, num string) (bool, error) {
 	return false, errors.Join(errors.New("Conflict"), errors2.ErrConflict)
 }
 
-func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) error {
+func (s *Store) ChangeLoyaltyPoints(login string, order string, sum float64) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -194,18 +194,20 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) err
 			tx.Rollback()
 		}
 	}()
-	var balance int
-	query := `SELECT current FROM loyalty_accounts WHERE username = $1`
-	err = tx.QueryRow(query, login).Scan(&balance)
+	var current, withdrawn int
+	query := `SELECT current, withdrawn 
+        FROM loyalty_accounts 
+        WHERE username = $1`
+	err = tx.QueryRow(query, login).Scan(&current, &withdrawn)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return errors.Join(errors.New("account not found"), errors2.ErrInternal)
 		}
 		return errors.Join(err, errors2.ErrInternal)
 	}
-	balanceFloat := float64(balance) / 100
+	balanceFloat := float64(current) / 100
 
-	if balanceFloat-num < 0 {
+	if balanceFloat < sum {
 		return errors.Join(errors.New("insufficient funds"), errors2.ErrPaymentRequired)
 	}
 	query1 := `SELECT withdrawals FROM order_history WHERE username = $1 AND order_number = $2`
@@ -223,13 +225,13 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) err
 		return errors.Join(errors.New("there has already been a write-off for this order"), errors2.ErrUnprocessableEntity) //проверка здесь происходит на то, не списывались ли в счёт этого заказа уже баллы, возвращаю 422, но не уверен
 	}
 
-	_, err = tx.Exec("UPDATE order_history SET withdrawals = $1 WHERE username = $2 AND order_number = $3", num*100, login, order)
+	_, err = tx.Exec("UPDATE order_history SET withdrawals = $1 WHERE username = $2 AND order_number = $3", sum*100, login, order)
 	if err != nil {
 		return errors.Join(err, errors2.ErrInternal)
 	}
 
-	newBalance := balanceFloat - num
-	_, err = tx.Exec("UPDATE loyalty_accounts SET current = $1, withdrawn = withdrawn + $2 WHERE username = $3", newBalance*100, num*100, login)
+	newBalance := balanceFloat - sum
+	_, err = tx.Exec("UPDATE loyalty_accounts SET current = $1, withdrawn = withdrawn + $2 WHERE username = $3", newBalance*100, sum*100, login)
 	if err != nil {
 		return errors.Join(err, errors2.ErrInternal)
 	}
