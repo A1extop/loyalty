@@ -107,7 +107,7 @@ func (s *Store) SendingData(login string, number string) error {
 		return errors.Join(err, errors2.ErrInternal)
 	}
 	// Начало логирования всех записей из order_history
-	rows, err := s.db.Query("SELECT order_number, withdrawals FROM order_history")
+	rows, err := s.db.Query("SELECT or2der_number, withdrawals FROM order_history")
 	if err != nil {
 		log.Printf("Ошибка при выборке данных из order_history: %v", err)
 		return err
@@ -209,30 +209,7 @@ func (s *Store) CheckUserOrders(login string, num string) (bool, error) {
 }
 
 func (s *Store) ChangeLoyaltyPoints(login string, order string, sum float64) error {
-	// Начало логирования всех записей из order_history
-	rows, err := s.db.Query("SELECT order_number, withdrawals FROM order_history")
-	if err != nil {
-		log.Printf("Ошибка при выборке данных из order_history: %v", err)
-		return err
-	}
-	defer rows.Close()
 
-	log.Println("Содержимое таблицы order_history(ChangeLoyaltyPoints):")
-	for rows.Next() {
-		var orderNumber string
-		var withdrawals int
-		err := rows.Scan(&orderNumber, &withdrawals)
-		if err != nil {
-			log.Printf("Ошибка при сканировании строки: %v", err)
-			return err
-		}
-		log.Printf("order_number: %s, withdrawals: %d", orderNumber, withdrawals)
-	}
-	if err := rows.Err(); err != nil {
-		log.Printf("Ошибка после итерации по строкам: %v", err)
-		return err
-	}
-	// Конец логирования
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -264,7 +241,11 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, sum float64) err
 	err = row.Scan(&withdrawals)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return errors.Join(errors.New("order not found"), errors2.ErrNotFound) //здесь появляется ошибка, которой быть не должно, не знаю, что с этим делать
+			err = s.SendingData(login, order)
+			if err != nil {
+				return errors.Join(errors.New("order not found"), errors2.ErrNotFound) //!!!!!здесь появляется ошибка, которой быть не должно, не знаю, что с этим делать
+			}
+
 		}
 		return errors.Join(err, errors2.ErrInternal)
 	}
