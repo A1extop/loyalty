@@ -228,9 +228,6 @@ func (r *Repository) GetBalance(c *gin.Context) {
 
 // Загрузка номера заказа
 func (r *Repository) Loading(c *gin.Context) {
-	if c.GetHeader("Content-Type") != "text/plain" {
-		return
-	}
 
 	data, err := io.ReadAll(c.Request.Body)
 	if err != nil {
