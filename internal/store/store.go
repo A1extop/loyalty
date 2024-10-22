@@ -22,7 +22,9 @@ type Store struct {
 }
 type Storage interface {
 	//Добавляет в таблицу users пользователя, а также создаёт запись в loyalty_accounts транзакциями
-	AddUsers(login string, key string, password string) error
+	AddUsers(login string, password string) error
+	//Проверяет наличие данного логина
+	UserExists(login string) (bool, error)
 	//Проверяет наличие и корректность данных, отправленынх клиентом в таблице
 	CheckAvailability(login string, password string) error
 	//Отправление заказа
@@ -238,23 +240,14 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, num float64) err
 
 	return nil
 }
-
-func (s *Store) AddUsers(login string, key string, password string) error {
-
+func (s *Store) UserExists(login string) (bool, error) {
 	var exists bool
 	query := "SELECT EXISTS(SELECT 1 FROM users WHERE username=$1)"
 	err := s.db.QueryRow(query, login).Scan(&exists)
-	if err != nil {
-		return errors.Join(err, errors2.ErrInternal)
-	}
+	return exists, err
+}
+func (s *Store) AddUsers(login string, password string) error {
 
-	if exists {
-		return errors.Join(errors.New("this login is already taken)"), errors2.ErrConflict)
-	}
-	hashedPassword, err := hash.HashPassword(password, key)
-	if err != nil {
-		return errors.Join(err, errors2.ErrInternal)
-	}
 	tx, err := s.db.Begin()
 	if err != nil {
 		return errors.Join(err, errors2.ErrInternal)
@@ -267,7 +260,7 @@ func (s *Store) AddUsers(login string, key string, password string) error {
 		}
 	}()
 	insertUserQuery := "INSERT INTO users (username, password_hash) VALUES ($1, $2)"
-	_, err = tx.Exec(insertUserQuery, login, hashedPassword)
+	_, err = tx.Exec(insertUserQuery, login, password)
 	if err != nil {
 		return errors.Join(err, errors2.ErrInternal)
 	}

@@ -12,6 +12,7 @@ import (
 	json2 "github.com/A1extop/loyalty/internal/json"
 	jwt1 "github.com/A1extop/loyalty/internal/jwt"
 	"github.com/A1extop/loyalty/internal/store"
+	"github.com/A1extop/loyalty/internal/usecase"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,11 +23,11 @@ type Repository struct {
 func NewRepository(s store.Storage) *Repository {
 	return &Repository{Storage: s}
 }
-func SetAuthCookie(c *gin.Context, name string, value string, duration time.Duration) {
+func SetAuthCookie(c *gin.Context, name string, value string) {
 	cookie := &http.Cookie{
 		Name:     name,
 		Value:    value,
-		Expires:  time.Now().Add(duration),
+		Expires:  time.Now().Add(24 * time.Hour),
 		HttpOnly: true,
 		Secure:   false,
 		Path:     "/",
@@ -38,25 +39,26 @@ func SetAuthCookie(c *gin.Context, name string, value string, duration time.Dura
 
 // Регистрирует пользователя и после успешной регистрации сразу авторизовывает
 func (r *Repository) Register(c *gin.Context) {
-	if c.GetHeader("Content-Type") != "application/json" {
-		return
-	}
 	data := c.Request.Body
 	user, err := json2.UnpackingUserJSON(data)
 	if err != nil {
 		c.String(http.StatusBadRequest, err.Error())
-	}
-	err = r.Storage.AddUsers(user.Login, "secretKey", user.Password)
-	if err != nil {
-		c.String(errors2.StatusDetermination(err), err.Error())
-	}
-	token, err := jwt1.GenerateJWT(user.Login)
-	if err != nil {
-		c.String(errors2.StatusDetermination(err), err.Error())
 		return
 	}
-	time := 24 * time.Hour
-	SetAuthCookie(c, "auth_token", token, time)
+
+	status, err := usecase.AddAccount(r.Storage, user)
+	if err != nil {
+		c.String(status, err.Error())
+		return
+	}
+
+	token, err := jwt1.GenerateJWT(user.Login)
+	if err != nil {
+		c.String(http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	SetAuthCookie(c, "auth_token", token)
 	c.String(http.StatusOK, "user successfully registered")
 }
 
@@ -281,8 +283,7 @@ func (r *Repository) Authentication(c *gin.Context) {
 		c.String(errors2.StatusDetermination(err), err.Error())
 		return
 	}
-	time := 24 * time.Hour
-	SetAuthCookie(c, "auth_token", token, time)
+	SetAuthCookie(c, "auth_token", token)
 
 	c.String(http.StatusOK, "user successfully authenticated")
 
