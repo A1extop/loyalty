@@ -178,7 +178,7 @@ func (r *Repository) PointsDebiting(c *gin.Context) {
 		c.String(errors2.StatusDetermination(err), err.Error())
 		return
 	}
-	c.Status(http.StatusOK)
+	c.String(http.StatusOK, "successful write-off")
 }
 
 // Проверка номера на алгоритм Луна
