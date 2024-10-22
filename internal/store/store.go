@@ -210,9 +210,9 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, sum float64) err
 	if balanceFloat < sum {
 		return errors.Join(errors.New("insufficient funds"), errors2.ErrPaymentRequired)
 	}
-	query1 := `SELECT withdrawals FROM order_history WHERE username = $1 AND order_number = $2`
+	query1 := `SELECT withdrawals FROM order_history WHERE order_number = $2`
 	var withdrawals int
-	row := tx.QueryRow(query1, login, order)
+	row := tx.QueryRow(query1, order)
 	err = row.Scan(&withdrawals)
 	if err != nil {
 		if err == sql.ErrNoRows {
