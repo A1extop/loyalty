@@ -114,7 +114,7 @@ func (s *Store) SendingData(login string, number string) error {
 	}
 	defer rows.Close()
 
-	log.Println("Содержимое таблицы order_history:")
+	log.Println("Содержимое таблицы order_history(проверка sendingData):")
 	for rows.Next() {
 		var orderNumber string
 		var withdrawals int
@@ -217,7 +217,7 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, sum float64) err
 	}
 	defer rows.Close()
 
-	log.Println("Содержимое таблицы order_history:")
+	log.Println("Содержимое таблицы order_history(ChangeLoyaltyPoints):")
 	for rows.Next() {
 		var orderNumber string
 		var withdrawals int
@@ -408,7 +408,8 @@ func CreateOrConnectTable(db *sql.DB) {
 			accrual INTEGER  DEFAULT 0,
 			withdrawals INTEGER DEFAULT 0,
 			processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (username) REFERENCES users(username)
+			FOREIGN KEY (username) REFERENCES users(username),
+			CONSTRAINT unique_user_order UNIQUE (username, order_number)
 		);`)
 		if err != nil {
 			log.Fatal("database creation error2:", err)

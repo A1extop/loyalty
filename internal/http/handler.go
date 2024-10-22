@@ -8,8 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"strings"
-
 	errors2 "github.com/A1extop/loyalty/internal/errors"
 	json2 "github.com/A1extop/loyalty/internal/json"
 	jwt1 "github.com/A1extop/loyalty/internal/jwt"
@@ -229,13 +227,13 @@ func (r *Repository) GetBalance(c *gin.Context) {
 // Загрузка номера заказа
 func (r *Repository) Loading(c *gin.Context) {
 
-	data, err := io.ReadAll(c.Request.Body)
+	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		c.String(http.StatusInternalServerError, "Error reading order number")
 		return
 	}
-	numberString := strings.TrimSpace(string(data))
-	log.Println(numberString)
+	numberString := string(body)
+	log.Println("номер строки после преобразования из байтов - ", numberString)
 	ex := validNumber(numberString)
 	if !ex {
 		c.String(http.StatusUnprocessableEntity, "Invalid order number")
