@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"strings"
+
 	errors2 "github.com/A1extop/loyalty/internal/errors"
 	json2 "github.com/A1extop/loyalty/internal/json"
 	jwt1 "github.com/A1extop/loyalty/internal/jwt"
@@ -235,7 +237,7 @@ func (r *Repository) Loading(c *gin.Context) {
 		c.String(http.StatusInternalServerError, "Error reading order number")
 		return
 	}
-	numberString := string(data)
+	numberString := strings.TrimSpace(string(data))
 	log.Println(numberString)
 	ex := validNumber(numberString)
 	if !ex {
