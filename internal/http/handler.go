@@ -12,7 +12,9 @@ import (
 	json2 "github.com/A1extop/loyalty/internal/json"
 	jwt1 "github.com/A1extop/loyalty/internal/jwt"
 	"github.com/A1extop/loyalty/internal/store"
+
 	"github.com/A1extop/loyalty/internal/usecase"
+
 	"github.com/gin-gonic/gin"
 )
 

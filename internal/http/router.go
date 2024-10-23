@@ -5,8 +5,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(repos *Repository) *gin.Engine {
+type ReposHandler struct {
+	Repos Repository
+}
 
+func NewRouter(repos *Repository) *gin.Engine {
 	router := gin.New()
 	log := logging.New()
 	router.POST("/api/user/register", logging.LoggingPost(log), repos.Register)
