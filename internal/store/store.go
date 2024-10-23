@@ -239,7 +239,7 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, sum float64) err
 	err = tx.QueryRow(query, login).Scan(&current, &withdrawn)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return errors.Join(errors.New("account not found"), domain.ErrNotFound)
+			return errors.Join(errors.New("account not found"), domain.ErrInternal)
 		}
 		return errors.Join(err, domain.ErrInternal)
 	}
