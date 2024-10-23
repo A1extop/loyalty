@@ -6,6 +6,7 @@ import (
 )
 
 func NewRouter(repos *Repository) *gin.Engine {
+
 	router := gin.New()
 	log := logging.New()
 	router.POST("/api/user/register", logging.LoggingPost(log), repos.Register)

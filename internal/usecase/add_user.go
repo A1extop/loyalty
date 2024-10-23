@@ -18,7 +18,7 @@ func AddAccount(storage store.Storage, user *json2.UserCredentials) (int, error)
 		return http.StatusConflict, errors.New("login is already taken")
 	}
 
-	hashedPassword, err := hash.HashPassword(user.Password, "secretKey") // "secretKey" лучше вынести в конфиг?
+	hashedPassword, err := hash.HashPassword(user.Password, "secretKey") //"secretKey"вынесу в конфиг
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}

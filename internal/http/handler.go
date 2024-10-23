@@ -5,7 +5,7 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"strconv"
+
 	"time"
 
 	errors2 "github.com/A1extop/loyalty/internal/errors"
@@ -23,7 +23,7 @@ type Repository struct {
 func NewRepository(s store.Storage) *Repository {
 	return &Repository{Storage: s}
 }
-func SetAuthCookie(c *gin.Context, name string, value string) {
+func setAuthCookie(c *gin.Context, name string, value string) {
 	cookie := &http.Cookie{
 		Name:     name,
 		Value:    value,
@@ -58,7 +58,7 @@ func (r *Repository) Register(c *gin.Context) {
 		return
 	}
 
-	SetAuthCookie(c, "auth_token", token)
+	setAuthCookie(c, "auth_token", token)
 	c.String(http.StatusOK, "user successfully registered")
 }
 
@@ -181,27 +181,6 @@ func (r *Repository) PointsDebiting(c *gin.Context) {
 	c.String(http.StatusOK, "successful write-off")
 }
 
-// Проверка номера на алгоритм Луна
-func validNumber(numberStr string) bool {
-	var sum int
-	alt := false
-	for i := len(numberStr) - 1; i >= 0; i-- {
-		num, err := strconv.Atoi(string(numberStr[i]))
-		if err != nil {
-			return false
-		}
-		if alt {
-			num *= 2
-			if num > 9 {
-				num -= 9
-			}
-		}
-		sum += num
-		alt = !alt
-	}
-	return sum%10 == 0
-}
-
 // Получение баланса пользователем
 func (r *Repository) GetBalance(c *gin.Context) {
 	userName, exists := c.Get("username")
@@ -233,55 +212,44 @@ func (r *Repository) Loading(c *gin.Context) {
 		return
 	}
 	numberString := string(body)
-	log.Println("номер строки после преобразования из байтов - ", numberString)
-	ex := validNumber(numberString)
-	if !ex {
-		c.String(http.StatusUnprocessableEntity, "Invalid order number")
-		return
-	}
+
 	userName, exists := c.Get("username")
 	if !exists {
 		c.String(http.StatusUnauthorized, "User is not authenticated")
 	}
 	login := userName.(string)
 
-	exists, err = r.Storage.CheckUserOrders(login, numberString)
+	status, err := usecase.Load(r.Storage, numberString, login)
 	if err != nil {
-		c.String(errors2.StatusDetermination(err), err.Error())
+		c.String(status, err.Error())
 	}
-	if exists {
-		c.String(http.StatusOK, "Everything is fine")
-		return
-	}
-	err = r.Storage.SendingData(login, numberString)
-	if err != nil {
-		c.String(errors2.StatusDetermination(err), err.Error())
-		return
-	}
-	c.String(http.StatusAccepted, "The new order number has been accepted for processing;")
+	c.Status(status)
 }
 
 // Аутенфикация пользователя
 func (r *Repository) Authentication(c *gin.Context) {
 	if c.GetHeader("Content-Type") != "application/json" {
+		c.Status(http.StatusBadRequest)
 		return
 	}
 	data := c.Request.Body
 	user, err := json2.UnpackingUserJSON(data)
 	if err != nil {
 		c.String(http.StatusBadRequest, err.Error())
+		return
 	}
-	err = r.Storage.CheckAvailability(user.Login, user.Password)
+	status, err := usecase.AuthenticationAccount(r.Storage, user)
 	if err != nil {
-		errors2.StatusDetermination(err)
-
+		c.String(status, err.Error())
+		return
 	}
+
 	token, err := jwt1.GenerateJWT(user.Login)
 	if err != nil {
 		c.String(errors2.StatusDetermination(err), err.Error())
 		return
 	}
-	SetAuthCookie(c, "auth_token", token)
+	setAuthCookie(c, "auth_token", token)
 
 	c.String(http.StatusOK, "user successfully authenticated")
 
