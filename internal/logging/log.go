@@ -65,21 +65,21 @@ func LoggingGet(logger *zap.SugaredLogger) gin.HandlerFunc {
 
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-
 		cookie, err := c.Cookie("auth_token")
 		if err != nil {
 			c.String(http.StatusUnauthorized, "Unauthorized")
 			c.Abort()
 			return
 		}
-		claims, err := jwt1.ValidateToken(cookie)
+
+		claims, err := jwt1.ValidateJWT(cookie)
 		if err != nil {
 			c.String(http.StatusUnauthorized, "Unauthorized")
 			c.Abort()
 			return
 		}
 
-		c.Set("username", claims.Username)
+		c.Set("username", claims.Subject)
 		c.Next()
 	}
 }
