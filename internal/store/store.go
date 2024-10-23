@@ -225,7 +225,7 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, sum float64) err
 
 	tx, err := s.db.Begin()
 	if err != nil {
-		return err
+		errors.Join(err, domain.ErrInternal)
 	}
 	defer func() {
 		if err != nil {
@@ -239,7 +239,7 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, sum float64) err
 	err = tx.QueryRow(query, login).Scan(&current, &withdrawn)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return errors.Join(errors.New("account not found"), domain.ErrInternal)
+			return errors.Join(errors.New("account not found"), domain.ErrNotFound)
 		}
 		return errors.Join(err, domain.ErrInternal)
 	}
@@ -257,7 +257,7 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, sum float64) err
 			return errors.Join(errors.New("order not found"), domain.ErrNotFound) //!!!!!здесь появляется ошибка, которой быть не должно, не знаю, что с этим делать
 
 		}
-		return errors.Join(err, domain.ErrInternal)
+		return errors.Join(err, domain.ErrNotFound)
 	}
 
 	if withdrawals != 0 {
@@ -395,7 +395,7 @@ func CreateOrConnectTable(db *sql.DB) {
 		_, err = db.Exec(`CREATE TABLE order_history (
 			order_number VARCHAR(255) NOT NULL,
 			username VARCHAR(255) NOT NULL,
-			status VARCHAR(20) DEFAULT 'REGISTERED',
+			status VARCHAR(30) DEFAULT 'REGISTERED',
 			accrual INTEGER  DEFAULT 0,
 			withdrawals INTEGER DEFAULT 0,
 			processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
