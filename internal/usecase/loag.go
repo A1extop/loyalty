@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strconv"
 
@@ -32,7 +31,6 @@ func validNumber(numberStr string) bool {
 }
 
 func Load(storage store.Storage, numberString string, login string) (int, error) {
-	log.Println("номер строки после преобразования из байтов - ", numberString)
 
 	ex := validNumber(numberString)
 	if !ex {
