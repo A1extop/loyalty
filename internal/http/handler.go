@@ -141,22 +141,12 @@ func (r *Repository) GetOrders(c *gin.Context) {
 		c.String(http.StatusUnauthorized, "The user is not authorized.")
 		return
 	}
-	history, err := r.Storage.Orders(userName.(string))
+	status, data, err := usecase.GetOrders(r.Storage, userName.(string))
 	if err != nil {
-		c.String(http.StatusInternalServerError, "Failed to retrieve orders: %s", err.Error())
+		c.String(status, err.Error())
 		return
 	}
-	if len(history) == 0 {
-		c.Status(http.StatusNoContent)
-		return
-	}
-	data, err := json2.PackingHistoryJSON(history)
-	if err != nil {
-		c.String(http.StatusInternalServerError, "Failed to pack orders into JSON.")
-
-		return
-	}
-	c.Data(http.StatusOK, "application/json", data)
+	c.Data(status, "application/json", data)
 }
 
 // Списание баллов
@@ -180,7 +170,7 @@ func (r *Repository) PointsDebiting(c *gin.Context) {
 		c.String(status, err.Error())
 		return
 	}
-	c.String(http.StatusOK, "successful write-off")
+	c.String(status, "successful write-off")
 }
 
 // Получение баланса пользователем
@@ -195,7 +185,7 @@ func (r *Repository) GetBalance(c *gin.Context) {
 		c.String(status, err.Error())
 		return
 	}
-	c.Data(http.StatusOK, "application/json", data)
+	c.Data(status, "application/json", data)
 }
 
 // Загрузка номера заказа
@@ -248,6 +238,6 @@ func (r *Repository) Authentication(c *gin.Context) {
 	}
 	setAuthCookie(c, "auth_token", token)
 
-	c.String(http.StatusOK, "user successfully authenticated")
+	c.String(status, "user successfully authenticated")
 
 }
