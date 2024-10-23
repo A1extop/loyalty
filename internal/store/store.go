@@ -50,10 +50,12 @@ type OrderProcessingStorage interface {
 	// Обновление данных в таблице
 	Send(result json2.OrderResponse) error
 }
+
 type Storage interface {
-	UserStorage
-	OrderStorage
+	OrderProcessingStorage
 	LoyaltyStorage
+	OrderStorage
+	UserStorage
 }
 
 func (s *Store) UpdateOrderInDB(orderNumber, status string, accrual int) error {
