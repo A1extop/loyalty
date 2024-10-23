@@ -119,30 +119,6 @@ func (s *Store) SendingData(login string, number string) error {
 	if err != nil {
 		return errors.Join(err, domain.ErrInternal)
 	}
-	// Начало логирования всех записей из order_history
-	rows, err := s.db.Query("SELECT order_number, withdrawals FROM order_history")
-	if err != nil {
-		log.Printf("Ошибка при выборке данных из order_history: %v", err)
-		return err
-	}
-	defer rows.Close()
-
-	log.Println("Содержимое таблицы order_history(проверка sendingData):")
-	for rows.Next() {
-		var orderNumber string
-		var withdrawals int
-		err := rows.Scan(&orderNumber, &withdrawals)
-		if err != nil {
-			log.Printf("Ошибка при сканировании строки: %v", err)
-			return err
-		}
-		log.Printf("order_number: %s, withdrawals: %d", orderNumber, withdrawals)
-	}
-	if err := rows.Err(); err != nil {
-		log.Printf("Ошибка после итерации по строкам: %v", err)
-		return err
-	}
-	// Конец логирования
 	return nil
 }
 
@@ -261,7 +237,7 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, sum float64) err
 	}
 
 	if withdrawals != 0 {
-		return errors.Join(errors.New("there has already been a write-off for this order"), domain.ErrUnprocessableEntity) //проверка здесь происходит на то, не списывались ли в счёт этого заказа уже баллы, возвращаю 422, но не уверен
+		return errors.Join(errors.New("there has already been a write-off for this order"), domain.ErrUnprocessableEntity)
 	}
 
 	_, err = tx.Exec("UPDATE order_history SET withdrawals = $1 WHERE username = $2 AND order_number = $3", sum*100, login, order)
