@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 
-	errors2 "github.com/A1extop/loyalty/internal/errors"
+	domain "github.com/A1extop/loyalty/internal/domain"
 	"github.com/A1extop/loyalty/internal/hash"
 	json2 "github.com/A1extop/loyalty/internal/json"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -20,29 +20,40 @@ func NewStore(db *sql.DB) *Store {
 type Store struct {
 	db *sql.DB
 }
-type Storage interface {
-	//Добавляет в таблицу users пользователя, а также создаёт запись в loyalty_accounts транзакциями
+type UserStorage interface {
+	// Добавляет в таблицу users пользователя, а также создаёт запись в loyalty_accounts
 	AddUsers(login string, password string) error
-	//Проверяет наличие данного логина
+	// Проверяет наличие данного логина
 	UserExists(login string) (bool, error)
-	//Проверяет наличие и корректность данных, отправленынх клиентом в таблице
+	// Проверяет наличие и корректность данных, отправленных клиентом
 	CheckAvailability(login string, password string) error
-	//Отправление заказа
+}
+type OrderStorage interface {
+	// Отправление заказа
 	SendingData(login string, number string) error
-	//Проверяет заказ, существует ли он и у кого находится
+	// Проверяет заказ, существует ли он и у кого находится
 	CheckUserOrders(login string, num string) (bool, error)
-	//Полученает данные с таблицы order_history, заворачивает данные в структуру и возвращает массив структур
+	// Получает данные из order_history и возвращает массив структур
 	Orders(login string) ([]json2.History, error)
-	//Заходит в таблицу loyalt_accounts и возвращает current, withdrawn error
-	Balance(login string) (float64, float64, error)
-	//Проверяет, хватает ли баланса для списания средств. Если да, то идёт в loyalty_accounts, там изменяет текущий баланс клиента, изменяет также в таблице order_history accrual и withdrawals
-	ChangeLoyaltyPoints(login string, order string, num float64) error
-	//Обновление данных в таблице
-	Send(result json2.OrderResponse) error
 	// Получение заказов со статусом, требующим обновления
 	GetOrdersForProcessing() ([]string, error)
-	//Обновление данных в таблице
+	// Обновление данных о заказе в базе данных
 	UpdateOrderInDB(orderNumber, status string, accrual int) error
+}
+type LoyaltyStorage interface {
+	// Возвращает текущий баланс и сумму списанных баллов
+	Balance(login string) (float64, float64, error)
+	// Проверяет баланс и изменяет его, если достаточно средств
+	ChangeLoyaltyPoints(login string, order string, num float64) error
+}
+type OrderProcessingStorage interface {
+	// Обновление данных в таблице
+	Send(result json2.OrderResponse) error
+}
+type Storage interface {
+	UserStorage
+	OrderStorage
+	LoyaltyStorage
 }
 
 func (s *Store) UpdateOrderInDB(orderNumber, status string, accrual int) error {
@@ -104,7 +115,7 @@ func (s *Store) SendingData(login string, number string) error {
 	query := `INSERT INTO order_history  (username, order_number, status) VALUES ($1, $2, $3)`
 	_, err := s.db.Exec(query, login, number, "PROCESSING")
 	if err != nil {
-		return errors.Join(err, errors2.ErrInternal)
+		return errors.Join(err, domain.ErrInternal)
 	}
 	// Начало логирования всех записей из order_history
 	rows, err := s.db.Query("SELECT order_number, withdrawals FROM order_history")
@@ -200,12 +211,12 @@ func (s *Store) CheckUserOrders(login string, num string) (bool, error) {
 		if errors.Is(err, sql.ErrNoRows) { //её нет тогда false проверяется и даёт зарегать
 			return false, nil
 		}
-		return false, errors.Join(err, errors2.ErrInternal)
+		return false, errors.Join(err, domain.ErrInternal)
 	}
 	if login == username {
 		return true, nil // есть и при этом у этого пользователя
 	}
-	return false, errors.Join(errors.New("Conflict"), errors2.ErrConflict)
+	return false, errors.Join(errors.New("Conflict"), domain.ErrConflict)
 }
 
 func (s *Store) ChangeLoyaltyPoints(login string, order string, sum float64) error {
@@ -226,14 +237,14 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, sum float64) err
 	err = tx.QueryRow(query, login).Scan(&current, &withdrawn)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return errors.Join(errors.New("account not found"), errors2.ErrInternal)
+			return errors.Join(errors.New("account not found"), domain.ErrInternal)
 		}
-		return errors.Join(err, errors2.ErrInternal)
+		return errors.Join(err, domain.ErrInternal)
 	}
 	balanceFloat := float64(current) / 100
 
 	if balanceFloat < sum {
-		return errors.Join(errors.New("insufficient funds"), errors2.ErrPaymentRequired)
+		return errors.Join(errors.New("insufficient funds"), domain.ErrPaymentRequired)
 	}
 	query1 := `SELECT withdrawals FROM order_history WHERE order_number = $2`
 	var withdrawals int
@@ -241,29 +252,29 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, sum float64) err
 	err = row.Scan(&withdrawals)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return errors.Join(errors.New("order not found"), errors2.ErrNotFound) //!!!!!здесь появляется ошибка, которой быть не должно, не знаю, что с этим делать
+			return errors.Join(errors.New("order not found"), domain.ErrNotFound) //!!!!!здесь появляется ошибка, которой быть не должно, не знаю, что с этим делать
 
 		}
-		return errors.Join(err, errors2.ErrInternal)
+		return errors.Join(err, domain.ErrInternal)
 	}
 
 	if withdrawals != 0 {
-		return errors.Join(errors.New("there has already been a write-off for this order"), errors2.ErrUnprocessableEntity) //проверка здесь происходит на то, не списывались ли в счёт этого заказа уже баллы, возвращаю 422, но не уверен
+		return errors.Join(errors.New("there has already been a write-off for this order"), domain.ErrUnprocessableEntity) //проверка здесь происходит на то, не списывались ли в счёт этого заказа уже баллы, возвращаю 422, но не уверен
 	}
 
 	_, err = tx.Exec("UPDATE order_history SET withdrawals = $1 WHERE username = $2 AND order_number = $3", sum*100, login, order)
 	if err != nil {
-		return errors.Join(err, errors2.ErrInternal)
+		return errors.Join(err, domain.ErrInternal)
 	}
 
 	newBalance := balanceFloat - sum
 	_, err = tx.Exec("UPDATE loyalty_accounts SET current = $1, withdrawn = withdrawn + $2 WHERE username = $3", newBalance*100, sum*100, login)
 	if err != nil {
-		return errors.Join(err, errors2.ErrInternal)
+		return errors.Join(err, domain.ErrInternal)
 	}
 	err = tx.Commit()
 	if err != nil {
-		return errors.Join(err, errors2.ErrInternal)
+		return errors.Join(err, domain.ErrInternal)
 	}
 
 	return nil
@@ -279,7 +290,7 @@ func (s *Store) AddUsers(login string, password string) error {
 
 	tx, err := s.db.Begin()
 	if err != nil {
-		return errors.Join(err, errors2.ErrInternal)
+		return errors.Join(err, domain.ErrInternal)
 	}
 	defer func() {
 		if err != nil {
@@ -291,13 +302,13 @@ func (s *Store) AddUsers(login string, password string) error {
 	insertUserQuery := "INSERT INTO users (username, password_hash) VALUES ($1, $2)"
 	_, err = tx.Exec(insertUserQuery, login, password)
 	if err != nil {
-		return errors.Join(err, errors2.ErrInternal)
+		return errors.Join(err, domain.ErrInternal)
 	}
 
 	insertLoyaltyAccountQuery := "INSERT INTO loyalty_accounts (username) VALUES ($1)"
 	_, err = tx.Exec(insertLoyaltyAccountQuery, login)
 	if err != nil {
-		return errors.Join(err, errors2.ErrInternal)
+		return errors.Join(err, domain.ErrInternal)
 	}
 	return nil
 }
@@ -307,22 +318,22 @@ func (s *Store) CheckAvailability(login string, password string) error {
 	query := "SELECT EXISTS(SELECT 1 FROM users WHERE username=$1)"
 	err := s.db.QueryRow(query, login).Scan(&exists)
 	if err != nil {
-		return errors.Join(err, errors2.ErrInternal)
+		return errors.Join(err, domain.ErrInternal)
 	}
 	if !exists {
-		return errors.Join(errors.New("incorrect login/password pair"), errors2.ErrUnauthorized)
+		return errors.Join(errors.New("incorrect login/password pair"), domain.ErrUnauthorized)
 	}
 	hashedPassword, err := hash.HashPassword(password, "secretKey") // подумаю как протянуть ещё!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	if err != nil {
-		return errors.Join(err, errors2.ErrInternal)
+		return errors.Join(err, domain.ErrInternal)
 	}
 	query1 := "SELECT EXISTS(SELECT 1 FROM users WHERE username=$1 AND password_hash =$2)"
 	err = s.db.QueryRow(query1, login, hashedPassword).Scan(&exists)
 	if err != nil {
-		return errors.Join(err, errors2.ErrInternal)
+		return errors.Join(err, domain.ErrInternal)
 	}
 	if !exists {
-		return errors.Join(errors.New("incorrect login/password pair"), errors2.ErrUnauthorized)
+		return errors.Join(errors.New("incorrect login/password pair"), domain.ErrUnauthorized)
 	}
 	return nil
 }

@@ -8,7 +8,7 @@ import (
 
 	"time"
 
-	errors2 "github.com/A1extop/loyalty/internal/errors"
+	domain "github.com/A1extop/loyalty/internal/domain"
 	json2 "github.com/A1extop/loyalty/internal/json"
 	jwt1 "github.com/A1extop/loyalty/internal/jwt"
 	"github.com/A1extop/loyalty/internal/store"
@@ -228,7 +228,7 @@ func (r *Repository) Authentication(c *gin.Context) {
 
 	token, err := jwt1.GenerateJWT(user.Login)
 	if err != nil {
-		c.String(errors2.StatusDetermination(err), err.Error())
+		c.String(domain.StatusDetermination(err), err.Error())
 		return
 	}
 	setAuthCookie(c, "auth_token", token)

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	errors2 "github.com/A1extop/loyalty/internal/errors"
+	domain "github.com/A1extop/loyalty/internal/domain"
 	"github.com/A1extop/loyalty/internal/store"
 )
 
@@ -40,14 +40,14 @@ func Load(storage store.Storage, numberString string, login string) (int, error)
 	}
 	exists, err := storage.CheckUserOrders(login, numberString)
 	if err != nil {
-		return errors2.StatusDetermination(err), err
+		return domain.StatusDetermination(err), err
 	}
 	if exists {
 		return http.StatusOK, nil
 	}
 	err = storage.SendingData(login, numberString)
 	if err != nil {
-		return errors2.StatusDetermination(err), err
+		return domain.StatusDetermination(err), err
 	}
 	return http.StatusAccepted, nil
 }
