@@ -36,7 +36,7 @@ func Load(storage store.Storage, numberString string, login string) (int, error)
 
 	ex := validNumber(numberString)
 	if !ex {
-		return http.StatusUnprocessableEntity, errors.New("Invalid order number")
+		return http.StatusUnprocessableEntity, errors.New("invalid order number")
 	}
 	exists, err := storage.CheckUserOrders(login, numberString)
 	if err != nil {

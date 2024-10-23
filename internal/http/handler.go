@@ -188,17 +188,9 @@ func (r *Repository) GetBalance(c *gin.Context) {
 		c.String(http.StatusUnauthorized, "The user is not authorized.")
 		return
 	}
-	current, withdrawn, err := r.Storage.Balance(userName.(string))
+	status, data, err := usecase.GetBalance(r.Storage, userName.(string))
 	if err != nil {
-		c.String(http.StatusInternalServerError, "error receiving balance: %s", err.Error())
-		return
-	}
-	balance := json2.NewBalance(current, withdrawn)
-
-	data, err := json2.PackingMoney(*balance)
-	if err != nil {
-		c.String(http.StatusInternalServerError, "Failed packing JSON")
-		return
+		c.String(status, err.Error())
 	}
 	c.Data(http.StatusOK, "application/json", data)
 }
