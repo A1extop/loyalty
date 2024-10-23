@@ -167,15 +167,17 @@ func (r *Repository) PointsDebiting(c *gin.Context) {
 		c.String(http.StatusUnauthorized, "The user is not authorized.")
 		return
 	}
+
 	data := c.Request.Body
 	orderPoints, err := json2.UnpackingOrderPointsJSON(data)
 	if err != nil {
 		c.String(http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	err = r.Storage.ChangeLoyaltyPoints(userName.(string), orderPoints.Order, orderPoints.Sum)
+
+	status, err := usecase.WriteOff(r.Storage, userName.(string), orderPoints.Order, orderPoints.Sum)
 	if err != nil {
-		c.String(errors2.StatusDetermination(err), err.Error())
+		c.String(status, err.Error())
 		return
 	}
 	c.String(http.StatusOK, "successful write-off")
@@ -191,6 +193,7 @@ func (r *Repository) GetBalance(c *gin.Context) {
 	status, data, err := usecase.GetBalance(r.Storage, userName.(string))
 	if err != nil {
 		c.String(status, err.Error())
+		return
 	}
 	c.Data(http.StatusOK, "application/json", data)
 }
@@ -208,12 +211,14 @@ func (r *Repository) Loading(c *gin.Context) {
 	userName, exists := c.Get("username")
 	if !exists {
 		c.String(http.StatusUnauthorized, "User is not authenticated")
+		return
 	}
 	login := userName.(string)
 
 	status, err := usecase.Load(r.Storage, numberString, login)
 	if err != nil {
 		c.String(status, err.Error())
+		return
 	}
 	c.Status(status)
 }
