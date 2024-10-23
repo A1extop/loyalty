@@ -121,16 +121,11 @@ func (r *Repository) GetWithdrawals(c *gin.Context) {
 		c.String(http.StatusUnauthorized, "The user is not authorized.")
 		return
 	}
-	data, err := r.Storage.Orders(userName.(string))
+	status, dataByte, err := usecase.GetWithdrawals(r.Storage, userName.(string))
 	if err != nil {
-		c.Status(http.StatusInternalServerError)
+		c.String(status, err.Error())
 	}
-	dataByte, err := json2.PackingWithdrawalsJSON(data)
-	if err != nil {
-		c.String(http.StatusInternalServerError, "Data conversion error")
-		return
-	}
-	c.Data(http.StatusOK, "application/json", dataByte)
+	c.Data(status, "application/json", dataByte)
 
 }
 
