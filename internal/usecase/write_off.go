@@ -8,7 +8,17 @@ import (
 )
 
 func WriteOff(storage store.Storage, login string, order string, sum float64) (int, error) {
-	err := storage.ChangeLoyaltyPoints(login, order, sum)
+	ex, err := storage.CheckUserOrders(login, order)
+	if err != nil {
+		return http.StatusInternalServerError, domain.ErrInternal
+	}
+	if !ex {
+		err := storage.SendingData(login, order)
+		if err != nil {
+			return http.StatusInternalServerError, domain.ErrInternal
+		}
+	}
+	err = storage.ChangeLoyaltyPoints(login, order, sum)
 	if err != nil {
 		return domain.StatusDetermination(err), err
 	}
