@@ -248,16 +248,16 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, sum float64) err
 	if balanceFloat < sum {
 		return errors.Join(errors.New("insufficient funds"), domain.ErrPaymentRequired)
 	}
-	query1 := `SELECT withdrawals FROM order_history WHERE order_number = $2`
+	query1 := `SELECT withdrawals FROM order_history WHERE order_number = $1`
 	var withdrawals int
 	row := tx.QueryRow(query1, order)
 	err = row.Scan(&withdrawals)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return errors.Join(errors.New("order not found"), domain.ErrNotFound) //!!!!!здесь появляется ошибка, которой быть не должно, не знаю, что с этим делать
+			return errors.Join(errors.New("order not found"), domain.ErrNotFound)
 
 		}
-		return errors.Join(err, domain.ErrUnauthorized)
+		return errors.Join(err, domain.ErrInternal)
 	}
 
 	if withdrawals != 0 {
