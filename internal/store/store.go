@@ -241,7 +241,7 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, sum float64) err
 		if err == sql.ErrNoRows {
 			return errors.Join(errors.New("account not found"), domain.ErrInternal)
 		}
-		return errors.Join(err, domain.ErrInternal)
+		return errors.Join(err, domain.ErrConflict)
 	}
 	balanceFloat := float64(current) / 100
 
@@ -257,7 +257,7 @@ func (s *Store) ChangeLoyaltyPoints(login string, order string, sum float64) err
 			return errors.Join(errors.New("order not found"), domain.ErrNotFound) //!!!!!здесь появляется ошибка, которой быть не должно, не знаю, что с этим делать
 
 		}
-		return errors.Join(err, domain.ErrNotFound)
+		return errors.Join(err, domain.ErrUnauthorized)
 	}
 
 	if withdrawals != 0 {
