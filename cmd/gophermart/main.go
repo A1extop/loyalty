@@ -7,6 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"time"
+
 	"github.com/A1extop/loyalty/config"
 	"github.com/A1extop/loyalty/internal"
 	v1 "github.com/A1extop/loyalty/internal/controller/http/v1"
@@ -15,6 +17,8 @@ import (
 	loUse "github.com/A1extop/loyalty/internal/services/loyalty/usecase"
 	orRepo "github.com/A1extop/loyalty/internal/services/orders/repostory"
 	orUse "github.com/A1extop/loyalty/internal/services/orders/usecase"
+	sysLoRepo "github.com/A1extop/loyalty/internal/services/systemloyalty/repostory"
+	sysLoUse "github.com/A1extop/loyalty/internal/services/systemloyalty/usecase"
 	usRepo "github.com/A1extop/loyalty/internal/services/users/repostory"
 	usUse "github.com/A1extop/loyalty/internal/services/users/usecase"
 	"github.com/gin-contrib/cors"
@@ -56,6 +60,12 @@ func main() {
 
 	v1.NewLoyaltyHandler(router, loyaltyUsecase)
 
+	systemLoyaltyRepo := sysLoRepo.NewSystemLoyaltyRepo(database)
+
+	systemLoyaltyUsecase := sysLoUse.NewSystemLoyaltyUsecase(systemLoyaltyRepo)
+
+	ticker := time.NewTicker(time.Duration(cfg.Interval))
+	v1.Action(ctx, systemLoyaltyUsecase, ticker, cfg.SystemAddr)
 	internal.Run(ctx, cfg, router)
 	// todo use goose migrations check or up
 	//if db != nil {
