@@ -42,7 +42,7 @@ func (h *UserHandler) Register(ctx *gin.Context) {
 		return
 	}
 
-	err = jwt1.GenerateJWT(ctx, user.Login)
+	err = jwt1.Session(ctx, user.Login)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error3": err.Error()})
 		return
@@ -63,7 +63,7 @@ func (h *UserHandler) Authentication(ctx *gin.Context) {
 		ctx.JSON(domain.StatusDetermination(err), gin.H{"error": err.Error()})
 		return
 	}
-	err = jwt1.GenerateJWT(ctx, user.Login)
+	err = jwt1.Session(ctx, user.Login)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

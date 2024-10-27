@@ -6,14 +6,13 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-contrib/sessions"
-	"github.com/gin-contrib/sessions/cookie"
+
 	"github.com/gin-gonic/gin"
 )
 
-var cookieStore = cookie.NewStore([]byte("secretKey"))
 var jwtKey = []byte("secretKey")
 
-func GenerateJWT(c *gin.Context, username string) error {
+func Session(c *gin.Context, username string) error {
 	claims := &jwt.StandardClaims{
 		Subject:   username,
 		ExpiresAt: time.Now().Add(24 * time.Hour).Unix(),

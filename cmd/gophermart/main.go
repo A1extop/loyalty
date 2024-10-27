@@ -18,6 +18,8 @@ import (
 	usRepo "github.com/A1extop/loyalty/internal/services/users/repostory"
 	usUse "github.com/A1extop/loyalty/internal/services/users/usecase"
 	"github.com/gin-contrib/cors"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 )
 
@@ -44,6 +46,10 @@ func main() {
 
 	router := gin.Default()
 	router.Use(cors.Default())
+
+	store := cookie.NewStore([]byte("secretKey"))
+	router.Use(sessions.Sessions("mysession", store))
+
 	v1.NewUserHandler(router, userUsecase)
 
 	v1.NewOrderHandler(router, orderUsecase)

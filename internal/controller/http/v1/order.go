@@ -6,6 +6,7 @@ import (
 	"github.com/A1extop/loyalty/internal/domain"
 	"github.com/A1extop/loyalty/internal/jwt"
 	"github.com/A1extop/loyalty/internal/services/orders/interfaces"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -20,6 +21,7 @@ func NewOrderHandler(engine *gin.Engine, service interfaces.IOrderCase) { // che
 
 	router := engine.Group("/api")
 	router.Use(jwt.AuthMiddleware())
+
 	{
 		router.POST("/user/orders", handler.Loading)
 		router.GET("/user/orders", handler.GetOrders)
