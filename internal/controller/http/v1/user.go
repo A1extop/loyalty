@@ -81,6 +81,10 @@ func (h *UserHandler) Authentication(ctx *gin.Context) {
 		return
 	}
 	token, err := jwt1.GenerateJWT(user.Login)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	setAuthCookie(ctx, "auth_token", token)
 	ctx.JSON(http.StatusOK, gin.H{
 		"auth_token": token,

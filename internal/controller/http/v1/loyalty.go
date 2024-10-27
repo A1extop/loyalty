@@ -37,8 +37,7 @@ func (h *LoyaltyHandler) GetBalance(ctx *gin.Context) {
 		ctx.JSON(domain.StatusDetermination(err), gin.H{"error": err.Error()})
 		return
 	}
-	var balance models.Balance = models.Balance{Current: current, Withdrawn: withdrawn}
-
+	balance := models.Balance{Current: current, Withdrawn: withdrawn}
 	ctx.JSON(http.StatusOK, balance)
 }
 func (h *LoyaltyHandler) PointsDebiting(ctx *gin.Context) {
