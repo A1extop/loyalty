@@ -9,5 +9,5 @@ import (
 type IOrderCase interface {
 	Load(ctx context.Context, numberString string, login string) (bool, error)
 	GetOrders(ctx context.Context, login string) ([]models.OrderResponse, error)
-	GetWithdrawals(ctx context.Context, login string) ([]models.History, error)
+	GetWithdrawals(ctx context.Context, login string) ([]models.PartialHistory, error)
 }

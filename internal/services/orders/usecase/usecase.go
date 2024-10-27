@@ -83,10 +83,19 @@ func (u *OrderUsecase) GetOrders(ctx context.Context, login string) ([]models.Or
 	return responses, nil
 }
 
-func (u *OrderUsecase) GetWithdrawals(ctx context.Context, login string) ([]models.History, error) { // тут потом распаковка запаковка, учитывать надо модель
+func (u *OrderUsecase) GetWithdrawals(ctx context.Context, login string) ([]models.PartialHistory, error) { // тут потом распаковка запаковка, учитывать надо модель
 	data, err := u.repo.Orders(ctx, login)
 	if err != nil {
 		return nil, errors.Join(err, domain.ErrInternal)
 	}
-	return data, nil
+	partialHistorys := make([]models.PartialHistory, 0)
+	for i := range data {
+		partial := models.PartialHistory{
+			Order:       data[i].Order,
+			Withdrawals: data[i].Withdrawals,
+			Uploaded:    data[i].Uploaded,
+		}
+		partialHistorys = append(partialHistorys, partial)
+	}
+	return partialHistorys, nil
 }

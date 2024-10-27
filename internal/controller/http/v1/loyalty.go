@@ -48,7 +48,6 @@ func (h *LoyaltyHandler) PointsDebiting(ctx *gin.Context) {
 		return
 
 	}
-
 	var orderPoints models.OrderPoints
 	if err := ctx.ShouldBindJSON(&orderPoints); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
