@@ -1,25 +1,22 @@
 package usecase
 
-
 import (
 	"context"
 	"errors"
 	"strconv"
-	"github.com/A1extop/loyalty/internal/services/orders/models"
+
 	"github.com/A1extop/loyalty/internal/domain"
 	"github.com/A1extop/loyalty/internal/services/orders/interfaces"
+	"github.com/A1extop/loyalty/internal/services/orders/models"
 )
-
 
 type OrderUsecase struct {
 	repo interfaces.IOrderRepository
 }
 
-
-func NewOrderUsecase(repo interfaces.IOrderRepository) interfaces.IOrderCase{
+func NewOrderUsecase(repo interfaces.IOrderRepository) interfaces.IOrderCase {
 	return &OrderUsecase{repo: repo}
 }
-
 
 func validNumber(numberStr string) bool {
 	var sum int
@@ -41,7 +38,6 @@ func validNumber(numberStr string) bool {
 	return sum%10 == 0
 }
 
-
 func (u *OrderUsecase) Load(ctx context.Context, numberString string, login string) (bool, error) { // тут точно параша получилась
 	ex := validNumber(numberString)
 	if !ex {
@@ -61,12 +57,30 @@ func (u *OrderUsecase) Load(ctx context.Context, numberString string, login stri
 	return false, nil
 }
 
-func (u *OrderUsecase) GetOrders(ctx context.Context, login string) ([]models.History, error) {
+func getOrderResponse(slHistory []models.History) []models.OrderResponse {
+	responses := make([]models.OrderResponse, len(slHistory))
+	for i := range slHistory {
+		slHistory[i].Uploaded = slHistory[i].Uploaded.UTC()
+		responses[i] = models.OrderResponse{
+			Order:    slHistory[i].Order,
+			Status:   slHistory[i].Status,
+			Accrual:  slHistory[i].Accrual,
+			Uploaded: slHistory[i].Uploaded,
+		}
+	}
+	return responses
+}
+
+func (u *OrderUsecase) GetOrders(ctx context.Context, login string) ([]models.OrderResponse, error) {
 	history, err := u.repo.Orders(ctx, login)
 	if err != nil {
 		return nil, errors.Join(err, domain.ErrInternal)
 	}
-	return history, nil
+	if len(history) == 0 {
+		return nil, domain.ErrNoContent
+	}
+	responses := getOrderResponse(history)
+	return responses, nil
 }
 
 func (u *OrderUsecase) GetWithdrawals(ctx context.Context, login string) ([]models.History, error) { // тут потом распаковка запаковка, учитывать надо модель

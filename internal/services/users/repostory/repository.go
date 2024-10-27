@@ -23,7 +23,7 @@ func (s *UserRepository) UserExists(ctx context.Context, login string) (bool, er
 	var exists bool
 	query := "SELECT EXISTS(SELECT 1 FROM users WHERE username=$1)"
 	err := s.db.Pool.QueryRow(ctx, query, login).Scan(&exists)
-	return exists, errors.Join(err, domain.ErrInternal) // а какую ошибку иначе возвращать
+	return exists, err
 }
 
 func (s *UserRepository) AddUsers(ctx context.Context, login string, password string) error {

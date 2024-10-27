@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 
 	"github.com/A1extop/loyalty/internal/domain"
 	"github.com/A1extop/loyalty/internal/hash"
@@ -18,7 +19,7 @@ func NewUserUsecase(repo interfaces.IUserRepository) interfaces.IUserCase {
 }
 
 func (u *UserUsecase) AddAccount(ctx context.Context, user *models.UserCredentials) error { // изменил, добавил проверку
-	exists, err := u.repo.UserExists(ctx, user.Login)
+	exists, err := u.repo.UserExists(ctx, user.Login) //
 	if err != nil {
 		return err
 	}
@@ -27,7 +28,7 @@ func (u *UserUsecase) AddAccount(ctx context.Context, user *models.UserCredentia
 	}
 	hashedPassword, err := hash.HashPassword(user.Password, "secretKey")
 	if err != nil {
-		return domain.ErrInternal
+		return errors.Join(domain.ErrInternal, errors.New("hashing error"))
 	}
 	return u.repo.AddUsers(ctx, user.Login, hashedPassword) //он же тут всё ровно захеширован должен быть?
 }

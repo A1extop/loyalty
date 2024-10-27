@@ -38,7 +38,7 @@ func (h *OrderHandler) GetOrders(ctx *gin.Context) {
 		ctx.JSON(domain.StatusDetermination(err), gin.H{"error": err.Error()})
 		return
 	}
-	ctx.JSON(http.StatusAccepted, data)
+	ctx.JSON(http.StatusOK, data)
 
 }
 func (h *OrderHandler) GetWithdrawals(ctx *gin.Context) {

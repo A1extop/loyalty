@@ -14,6 +14,7 @@ var (
 	ErrPaymentRequired     = errors.New("status Payment Required")
 	ErrNotFound            = errors.New("status Payment Required")
 	ErrUserNotFound        = errors.New("user not found")
+	ErrNoContent           = errors.New("no data")
 )
 
 func StatusDetermination(err error) int {
@@ -41,6 +42,9 @@ func StatusDetermination(err error) int {
 		}
 		if errors.Is(err, ErrUserNotFound) {
 			return http.StatusNotFound
+		}
+		if errors.Is(err, ErrNoContent) {
+			return http.StatusNoContent
 		}
 
 	}

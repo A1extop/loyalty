@@ -20,6 +20,7 @@ func Run(ctx context.Context, config *config.Config, router *gin.Engine) { // lo
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 20 * time.Second,
 		IdleTimeout:  60 * time.Second,
+		Addr:         config.AddressHTTP,
 		//Addr:         config.App.Host + ":" + config.App.Port, // todo uncomment
 		Handler: router,
 	}

@@ -45,20 +45,20 @@ func setAuthCookie(c *gin.Context, name string, value string) {
 func (h *UserHandler) Register(ctx *gin.Context) {
 	var user models.UserCredentials
 	if err := ctx.ShouldBindJSON(&user); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error1": err.Error()})
 		return
 	}
 	err := h.service.AddAccount(ctx, &user)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
+		ctx.JSON(domain.StatusDetermination(err), gin.H{
+			"error2": err.Error(),
 		})
 		return
 	}
 
 	token, err := jwt1.GenerateJWT(user.Login)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error3": err.Error()})
 		return
 	}
 
