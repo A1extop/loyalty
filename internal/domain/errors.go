@@ -13,6 +13,7 @@ var (
 	ErrTooManyRequests     = errors.New("too many requests")
 	ErrPaymentRequired     = errors.New("status Payment Required")
 	ErrNotFound            = errors.New("status Payment Required")
+	ErrUserNotFound        = errors.New("user not found")
 )
 
 func StatusDetermination(err error) int {
@@ -36,6 +37,9 @@ func StatusDetermination(err error) int {
 			return http.StatusPaymentRequired
 		}
 		if errors.Is(err, ErrNotFound) {
+			return http.StatusNotFound
+		}
+		if errors.Is(err, ErrUserNotFound) {
 			return http.StatusNotFound
 		}
 

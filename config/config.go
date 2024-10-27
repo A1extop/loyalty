@@ -6,17 +6,18 @@ import (
 	"strconv"
 )
 
-type Parameters struct {
+type Config struct {
 	AddressHTTP string
 	AddrDB      string
 	SystemAddr  string
 	Interval    int
 }
 
-func NewParameters() *Parameters {
-	return &Parameters{}
+func New() *Config {
+	return &Config{}
 }
-func (p *Parameters) getParameters() {
+
+func (p *Config) getParameters() {
 	addr := flag.String("a", "localhost:8080", "address HTTP")
 	addrDB := flag.String("d", "", "String with database connection address")
 	systemAddr := flag.String("r", "", "system address")
@@ -29,7 +30,8 @@ func (p *Parameters) getParameters() {
 	p.Interval = *interval
 
 }
-func (p *Parameters) getParametersEnvironmentVariables() {
+
+func (p *Config) getParametersEnvironmentVariables() {
 	addr := os.Getenv("RUN_ADDRESS")
 	if addr != "" {
 		p.AddressHTTP = addr
@@ -44,13 +46,13 @@ func (p *Parameters) getParametersEnvironmentVariables() {
 		p.SystemAddr = systemAddr
 	}
 	intervalStr := os.Getenv("INTERVAL")
-	interval, _ := strconv.Atoi(intervalStr)
+	interval, _ := strconv.Atoi(intervalStr) // todo обработать err
 	if intervalStr != "" {
 		p.Interval = interval
 	}
 }
 
-func (p *Parameters) Get() {
+func (p *Config) Get() {
 	p.getParameters()
 	p.getParametersEnvironmentVariables()
 }
