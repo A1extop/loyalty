@@ -6,7 +6,6 @@ import (
 
 	"github.com/A1extop/loyalty/internal/db"
 	"github.com/A1extop/loyalty/internal/domain"
-	"github.com/A1extop/loyalty/internal/hash"
 	"github.com/A1extop/loyalty/internal/services/users/interfaces"
 )
 
@@ -62,14 +61,12 @@ func (s *UserRepository) CheckAvailability(ctx context.Context, login string, pa
 	if !exists {
 		return errors.Join(errors.New("incorrect login/password pair"), domain.ErrUnauthorized)
 	}
-	hash1 := hash.NewSHA256Hasher()
-	hashedPassword, err := hash.HashPassword(password, hash1)
 
 	if err != nil {
 		return errors.Join(err, domain.ErrInternal)
 	}
 	queryExists := "SELECT EXISTS(SELECT 1 FROM users WHERE username=$1 AND password_hash =$2)"
-	err = s.db.Pool.QueryRow(ctx, queryExists, login, hashedPassword).Scan(&exists)
+	err = s.db.Pool.QueryRow(ctx, queryExists, login, password).Scan(&exists)
 	if err != nil {
 		return errors.Join(err, domain.ErrInternal)
 	}
