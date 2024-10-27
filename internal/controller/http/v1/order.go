@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/A1extop/loyalty/internal/domain"
-	"github.com/A1extop/loyalty/internal/logging"
+	"github.com/A1extop/loyalty/internal/jwt"
 	"github.com/A1extop/loyalty/internal/services/orders/interfaces"
 	"github.com/gin-gonic/gin"
 )
@@ -17,12 +17,13 @@ func NewOrderHandler(engine *gin.Engine, service interfaces.IOrderCase) { // che
 	handler := &OrderHandler{
 		service: service,
 	}
-	// делить
+
 	router := engine.Group("/api")
+	router.Use(jwt.AuthMiddleware())
 	{
-		router.POST("/user/orders", logging.AuthMiddleware(), handler.Loading)
-		router.GET("/user/orders", logging.AuthMiddleware(), handler.GetOrders)
-		router.GET("/user/withdrawals", logging.AuthMiddleware(), handler.GetWithdrawals)
+		router.POST("/user/orders", handler.Loading)
+		router.GET("/user/orders", handler.GetOrders)
+		router.GET("/user/withdrawals", handler.GetWithdrawals)
 	}
 }
 

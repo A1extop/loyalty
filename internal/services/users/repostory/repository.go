@@ -62,9 +62,6 @@ func (s *UserRepository) CheckAvailability(ctx context.Context, login string, pa
 		return errors.Join(errors.New("incorrect login/password pair"), domain.ErrUnauthorized)
 	}
 
-	if err != nil {
-		return errors.Join(err, domain.ErrInternal)
-	}
 	queryExists := "SELECT EXISTS(SELECT 1 FROM users WHERE username=$1 AND password_hash =$2)"
 	err = s.db.Pool.QueryRow(ctx, queryExists, login, password).Scan(&exists)
 	if err != nil {

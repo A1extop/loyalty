@@ -1,68 +1,67 @@
 package jwt
 
 import (
-	"errors"
-	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
+	"github.com/gin-gonic/gin"
 )
 
-var jwtKey = []byte("secretKey") // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+var cookieStore = cookie.NewStore([]byte("secretKey"))
+var jwtKey = []byte("secretKey")
 
-type Claims struct {
-	Username string `json:"username"`
-	jwt.StandardClaims
-}
-
-// Генерирует JWT токен
-func GenerateJWT(username string) (string, error) {
-	expirationTime := time.Now().Add(24 * time.Hour)
-
+func GenerateJWT(c *gin.Context, username string) error {
 	claims := &jwt.StandardClaims{
 		Subject:   username,
-		ExpiresAt: expirationTime.Unix(),
+		ExpiresAt: time.Now().Add(24 * time.Hour).Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(jwtKey)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	return tokenString, nil
-}
-func ParseJWT(tokenString string) (string, error) {
-	claims := &Claims{}
-
-	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-		return jwtKey, nil
-	})
-
-	if err != nil {
-		return "", err
+	session := sessions.Default(c)
+	session.Set("jwt_token", tokenString)
+	if err := session.Save(); err != nil {
+		return err
 	}
 
-	if !token.Valid {
-		return "", fmt.Errorf("invalid token")
-	}
-
-	return claims.Username, nil
+	return nil
 }
 
-func ValidateJWT(tokenString string) (*Claims, error) {
-	claims := &Claims{}
+func AuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		session := sessions.Default(c)
+		tokenString := session.Get("jwt_token")
 
-	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-		return jwtKey, nil
-	})
-	if err != nil {
-		return nil, err
+		if tokenString == nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "No token in session"})
+			c.Abort()
+			return
+		}
+
+		token, err := jwt.Parse(tokenString.(string), func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, jwt.NewValidationError("invalid signing method", jwt.ValidationErrorSignatureInvalid)
+			}
+			return jwtKey, nil
+		})
+
+		if err != nil || !token.Valid {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			c.Abort()
+			return
+		}
+
+		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+			c.Set("user", claims["sub"])
+		}
+
+		c.Next()
 	}
-
-	if !token.Valid {
-		return nil, errors.New("invalid token")
-	}
-
-	return claims, nil
 }
