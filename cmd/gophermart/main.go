@@ -32,7 +32,7 @@ func main() {
 	if err != nil {
 		log.Fatalln("Failed to connect to database at startup:", err)
 	}
-
+	db.CreateTable(ctx, database)
 	userRepo := usRepo.NewUserRepo(database)
 	userUsecase := usUse.NewUserUsecase(userRepo)
 

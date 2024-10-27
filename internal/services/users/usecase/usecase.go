@@ -26,16 +26,17 @@ func (u *UserUsecase) AddAccount(ctx context.Context, user *models.UserCredentia
 	if exists {
 		return domain.ErrConflict
 	}
-	hashedPassword, err := hash.HashPassword(user.Password, "secretKey")
+	hash1 := hash.NewSHA256Hasher()
+	hashedPassword, err := hash.HashPassword(user.Password, hash1)
 	if err != nil {
 		return errors.Join(domain.ErrInternal, errors.New("hashing error"))
 	}
-	return u.repo.AddUsers(ctx, user.Login, hashedPassword) //он же тут всё ровно захеширован должен быть?
+	return u.repo.AddUsers(ctx, user.Login, hashedPassword)
 }
 
 func (u *UserUsecase) AuthenticationAccount(ctx context.Context, user *models.UserCredentials) error {
-
-	hashedPassword, err := hash.HashPassword(user.Password, "secretKey")
+	hash1 := hash.NewSHA256Hasher()
+	hashedPassword, err := hash.HashPassword(user.Password, hash1)
 	if err != nil {
 		return domain.ErrInternal
 	}

@@ -12,12 +12,6 @@ type Database struct {
 	Pool *pgxpool.Pool
 }
 
-func tableExists(ctx context.Context, pool *pgxpool.Pool, tableName string) (bool, error) {
-	var exists bool
-	query := fmt.Sprintf("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '%s');", tableName)
-	err := pool.QueryRow(ctx, query).Scan(&exists)
-	return exists, err
-}
 func NewDatabase(ctx context.Context, dsn string) (*Database, error) {
 	//dataSourceName := fmt.Sprintf("host=%s port=%s user=%s database=%s password=%s sslmode=%s",
 	//	cfg.Pg.Host, cfg.Pg.Port, cfg.Pg.Username, cfg.Pg.Database, cfg.Pg.Password, cfg.Pg.Ssl)
@@ -32,12 +26,27 @@ func NewDatabase(ctx context.Context, dsn string) (*Database, error) {
 		return nil, err
 	}
 
-	exists, err := tableExists(ctx, pool, "users")
+	return &Database{
+		Pool: pool,
+	}, nil
+}
+
+func (db *Database) Close() {
+	db.Pool.Close()
+}
+func tableExists(ctx context.Context, pool *pgxpool.Pool, tableName string) (bool, error) {
+	var exists bool
+	query := fmt.Sprintf("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '%s');", tableName)
+	err := pool.QueryRow(ctx, query).Scan(&exists)
+	return exists, err
+}
+func CreateTable(ctx context.Context, db *Database) {
+	exists, err := tableExists(ctx, db.Pool, "users")
 	if err != nil {
 		log.Fatal("error in checking for database presence: ", err)
 	}
 	if !exists {
-		_, err = pool.Exec(ctx, `CREATE TABLE users (
+		_, err = db.Pool.Exec(ctx, `CREATE TABLE users (
     username VARCHAR(255) PRIMARY KEY,
     password_hash VARCHAR(255) NOT NULL
 );`)
@@ -46,12 +55,12 @@ func NewDatabase(ctx context.Context, dsn string) (*Database, error) {
 		}
 	}
 
-	exists, err = tableExists(ctx, pool, "order_history")
+	exists, err = tableExists(ctx, db.Pool, "order_history")
 	if err != nil {
 		log.Fatal("error in checking for database presence: ", err)
 	}
 	if !exists {
-		_, err = pool.Exec(ctx, `CREATE TABLE order_history (
+		_, err = db.Pool.Exec(ctx, `CREATE TABLE order_history (
 			order_number VARCHAR(255) NOT NULL,
 			username VARCHAR(255) NOT NULL,
 			status VARCHAR(30) DEFAULT 'REGISTERED',
@@ -65,12 +74,12 @@ func NewDatabase(ctx context.Context, dsn string) (*Database, error) {
 			log.Fatal("database creation error2:", err)
 		}
 	}
-	exists, err = tableExists(ctx, pool, "loyalty_accounts")
+	exists, err = tableExists(ctx, db.Pool, "loyalty_accounts")
 	if err != nil {
 		log.Fatal("error in checking for database presence: ", err)
 	}
 	if !exists {
-		_, err = pool.Exec(ctx, `CREATE TABLE loyalty_accounts (
+		_, err = db.Pool.Exec(ctx, `CREATE TABLE loyalty_accounts (
     username VARCHAR(255) PRIMARY KEY,
     current INTEGER DEFAULT 0,
 	withdrawn INTEGER DEFAULT 0,
@@ -80,12 +89,4 @@ func NewDatabase(ctx context.Context, dsn string) (*Database, error) {
 			log.Fatal("database creation error3:", err)
 		}
 	}
-
-	return &Database{
-		Pool: pool,
-	}, nil
-}
-
-func (db *Database) Close() {
-	db.Pool.Close()
 }

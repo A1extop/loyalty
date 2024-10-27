@@ -62,7 +62,9 @@ func (s *UserRepository) CheckAvailability(ctx context.Context, login string, pa
 	if !exists {
 		return errors.Join(errors.New("incorrect login/password pair"), domain.ErrUnauthorized)
 	}
-	hashedPassword, err := hash.HashPassword(password, "secretKey") // подумаю как протянуть ещё!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	hash1 := hash.NewSHA256Hasher()
+	hashedPassword, err := hash.HashPassword(password, hash1)
+
 	if err != nil {
 		return errors.Join(err, domain.ErrInternal)
 	}
