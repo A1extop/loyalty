@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/A1extop/loyalty/internal/domain"
-
+	"github.com/A1extop/loyalty/internal/jwt"
 	"github.com/A1extop/loyalty/internal/services/loyalty/interfaces"
 	"github.com/A1extop/loyalty/internal/services/loyalty/models"
 	"github.com/gin-gonic/gin"
@@ -20,6 +20,7 @@ func NewLoyaltyHandler(engine *gin.Engine, service interfaces.ILoyaltyCase) { //
 	}
 	// делить
 	router := engine.Group("/api")
+	router.Use(jwt.AuthMiddleware())
 	{
 		router.GET("/user/balance", handler.GetBalance)
 		router.POST("/user/balance/withdraw", handler.PointsDebiting)
