@@ -14,11 +14,10 @@ type LoyaltyHandler struct {
 	service interfaces.ILoyaltyCase
 }
 
-func NewLoyaltyHandler(engine *gin.Engine, service interfaces.ILoyaltyCase) { // checker middleware.IChecker
+func NewLoyaltyHandler(engine *gin.Engine, service interfaces.ILoyaltyCase) {
 	handler := &LoyaltyHandler{
 		service: service,
 	}
-	// делить
 	router := engine.Group("/api")
 	router.Use(jwt.AuthMiddleware())
 	{
@@ -27,7 +26,7 @@ func NewLoyaltyHandler(engine *gin.Engine, service interfaces.ILoyaltyCase) { //
 	}
 }
 func (h *LoyaltyHandler) GetBalance(ctx *gin.Context) {
-	userName, exists := ctx.Get("username") ////вопрос
+	userName, exists := ctx.Get("username")
 	if !exists {
 		ctx.String(http.StatusUnauthorized, "The user is not authorized.")
 		return

@@ -67,18 +67,7 @@ func main() {
 	ticker := time.NewTicker(time.Duration(cfg.Interval))
 	v1.Action(ctx, systemLoyaltyUsecase, ticker, cfg.SystemAddr)
 	internal.Run(ctx, cfg, router)
-	// todo use goose migrations check or up
-	//if db != nil {
-	//	psql.CreateOrConnectTable(db)
-	//}
-	//router := http3.NewRouter(repos)
-	//ticker := time.NewTicker(time.Duration(cfg.Interval))
-	//go repos.InteractionWithCalculationSystem(ticker, cfg.SystemAddr)
-	//log.Printf("Starting server on port %s", cfg.AddressHTTP)
-	//err = http.ListenAndServe(cfg.AddressHTTP, router)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
+
 }
 func Init(ctx context.Context, addrDB string) (*db.Database, error) {
 	database, err := db.NewDatabase(ctx, addrDB)

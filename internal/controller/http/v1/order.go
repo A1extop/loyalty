@@ -14,7 +14,7 @@ type OrderHandler struct {
 	service interfaces.IOrderCase
 }
 
-func NewOrderHandler(engine *gin.Engine, service interfaces.IOrderCase) { // checker middleware.IChecker
+func NewOrderHandler(engine *gin.Engine, service interfaces.IOrderCase) {
 	handler := &OrderHandler{
 		service: service,
 	}

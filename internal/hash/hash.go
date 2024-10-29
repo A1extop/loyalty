@@ -8,8 +8,6 @@ import (
 	"hash"
 )
 
-// Вроде отвязался от конкретной реализации
-
 var key = []byte("secretKey")
 
 type Hasher interface {

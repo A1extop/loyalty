@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func Run(ctx context.Context, config *config.Config, router *gin.Engine) { // logger *zap.Logger
+func Run(ctx context.Context, config *config.Config, router *gin.Engine) {
 	notifContext, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 

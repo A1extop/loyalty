@@ -14,14 +14,12 @@ type UserHandler struct {
 	service interfaces.IUserCase
 }
 
-func NewUserHandler(engine *gin.Engine, service interfaces.IUserCase) { // checker middleware.IChecker
+func NewUserHandler(engine *gin.Engine, service interfaces.IUserCase) {
 	handler := &UserHandler{
 		service: service,
 	}
-	// делить
 	router := engine.Group("/api")
 	{
-		//router.POST("/user/register", checker.AuthorizeRoles(util.Admin), handler.Register)   а checker.AuthorizeRoles(util.Admin)
 		router.POST("/user/register", handler.Register)
 		router.POST("/user/login", handler.Authentication)
 
