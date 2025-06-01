@@ -6,7 +6,8 @@ import (
 )
 
 var (
-	ErrUnauthorized        = errors.New("unauthorized")
+	ErrUnauthorized = errors.New("user is not authorized")
+
 	ErrInternal            = errors.New("internal server error")
 	ErrConflict            = errors.New("conflict")
 	ErrUnprocessableEntity = errors.New("unprocessable entity") //
@@ -18,35 +19,23 @@ var (
 )
 
 func StatusDetermination(err error) int {
-	if err != nil {
-		if errors.Is(err, ErrInternal) {
-			return http.StatusInternalServerError
-		}
-		if errors.Is(err, ErrConflict) {
-			return http.StatusConflict
-		}
-		if errors.Is(err, ErrUnauthorized) {
-			return http.StatusUnauthorized
-		}
-		if errors.Is(err, ErrUnprocessableEntity) {
-			return http.StatusUnprocessableEntity
-		}
-		if errors.Is(err, ErrTooManyRequests) {
-			return http.StatusTooManyRequests
-		}
-		if errors.Is(err, ErrPaymentRequired) {
-			return http.StatusPaymentRequired
-		}
-		if errors.Is(err, ErrNotFound) {
-			return http.StatusNotFound
-		}
-		if errors.Is(err, ErrUserNotFound) {
-			return http.StatusNotFound
-		}
-		if errors.Is(err, ErrNoContent) {
-			return http.StatusNoContent
-		}
-
+	switch {
+	case errors.Is(err, ErrInternal):
+		return http.StatusInternalServerError
+	case errors.Is(err, ErrConflict):
+		return http.StatusConflict
+	case errors.Is(err, ErrUnauthorized):
+		return http.StatusUnauthorized
+	case errors.Is(err, ErrUnprocessableEntity):
+		return http.StatusUnprocessableEntity
+	case errors.Is(err, ErrTooManyRequests):
+		return http.StatusTooManyRequests
+	case errors.Is(err, ErrPaymentRequired):
+		return http.StatusPaymentRequired
+	case errors.Is(err, ErrNotFound), errors.Is(err, ErrUserNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, ErrNoContent):
+		return http.StatusNoContent
 	}
 	return http.StatusOK
 }

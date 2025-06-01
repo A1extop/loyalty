@@ -32,7 +32,7 @@ func NewOrderHandler(engine *gin.Engine, service interfaces.IOrderCase) {
 func (h *OrderHandler) GetOrders(ctx *gin.Context) {
 	userName, exists := ctx.Get("username")
 	if !exists {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User is not authenticated"})
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": domain.ErrUnauthorized.Error()})
 		return
 
 	}
@@ -47,7 +47,7 @@ func (h *OrderHandler) GetOrders(ctx *gin.Context) {
 func (h *OrderHandler) GetWithdrawals(ctx *gin.Context) {
 	username, exists := ctx.Get("username")
 	if !exists {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User is not authenticated"})
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": domain.ErrUnauthorized.Error()})
 		return
 
 	}
@@ -63,7 +63,7 @@ func (h *OrderHandler) Loading(ctx *gin.Context) {
 
 	userName, exists := ctx.Get("username")
 	if !exists {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User is not authenticated"})
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": domain.ErrUnauthorized.Error()})
 		return
 
 	}

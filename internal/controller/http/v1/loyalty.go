@@ -28,13 +28,13 @@ func NewLoyaltyHandler(engine *gin.Engine, service interfaces.ILoyaltyCase) {
 func (h *LoyaltyHandler) GetBalance(ctx *gin.Context) {
 	userName, exists := ctx.Get("username")
 	if !exists {
-		ctx.String(http.StatusUnauthorized, "The user is not authorized.")
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": domain.ErrUnauthorized.Error()})
 		return
 	}
 
 	current, withdrawn, err := h.service.GetBalanceAccount(ctx, userName.(string))
 	if err != nil {
-		ctx.JSON(domain.StatusDetermination(err), gin.H{"error": err.Error()})
+		ctx.JSON(domain.StatusDetermination(err), gin.H{"error": domain.ErrUnauthorized.Error()})
 		return
 	}
 	balance := models.Balance{Current: current, Withdrawn: withdrawn}
@@ -43,7 +43,7 @@ func (h *LoyaltyHandler) GetBalance(ctx *gin.Context) {
 func (h *LoyaltyHandler) PointsDebiting(ctx *gin.Context) {
 	userName, exists := ctx.Get("username")
 	if !exists {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User is not authenticated"})
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": domain.ErrUnauthorized.Error()})
 		return
 
 	}
