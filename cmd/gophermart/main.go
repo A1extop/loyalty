@@ -1,3 +1,78 @@
 package main
 
-func main() {}
+import (
+	"context"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"time"
+
+	"github.com/A1extop/loyalty/config"
+	"github.com/A1extop/loyalty/internal"
+	v1 "github.com/A1extop/loyalty/internal/controller/http/v1"
+	"github.com/A1extop/loyalty/internal/db"
+	loRepo "github.com/A1extop/loyalty/internal/services/loyalty/repostory"
+	loUse "github.com/A1extop/loyalty/internal/services/loyalty/usecase"
+	orRepo "github.com/A1extop/loyalty/internal/services/orders/repostory"
+	orUse "github.com/A1extop/loyalty/internal/services/orders/usecase"
+	sysLoRepo "github.com/A1extop/loyalty/internal/services/systemloyalty/repostory"
+	sysLoUse "github.com/A1extop/loyalty/internal/services/systemloyalty/usecase"
+	usRepo "github.com/A1extop/loyalty/internal/services/users/repostory"
+	usUse "github.com/A1extop/loyalty/internal/services/users/usecase"
+	"github.com/gin-contrib/cors"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
+	"github.com/gin-gonic/gin"
+)
+
+func main() {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	cfg := config.New()
+	cfg.Get()
+
+	database, err := Init(ctx, cfg.AddrDB)
+	if err != nil {
+		log.Fatalln("Failed to connect to database at startup:", err)
+	}
+	db.CreateTable(ctx, database)
+	userRepo := usRepo.NewUserRepo(database)
+	userUsecase := usUse.NewUserUsecase(userRepo)
+
+	orderRepo := orRepo.NewOrderRepo(database)
+	orderUsecase := orUse.NewOrderUsecase(orderRepo)
+
+	loyaltyRepo := loRepo.NewLoyaltyRepo(database)
+	loyaltyUsecase := loUse.NewLoyaltyUsecase(loyaltyRepo)
+
+	router := gin.Default()
+	router.Use(cors.Default())
+
+	store := cookie.NewStore([]byte("secretKey"))
+	router.Use(sessions.Sessions("mysession", store))
+
+	v1.NewUserHandler(router, userUsecase)
+
+	v1.NewOrderHandler(router, orderUsecase)
+
+	v1.NewLoyaltyHandler(router, loyaltyUsecase)
+
+	systemLoyaltyRepo := sysLoRepo.NewSystemLoyaltyRepo(database)
+
+	systemLoyaltyUsecase := sysLoUse.NewSystemLoyaltyUsecase(systemLoyaltyRepo)
+
+	ticker := time.NewTicker(time.Duration(cfg.Interval))
+	v1.Action(ctx, systemLoyaltyUsecase, ticker, cfg.SystemAddr)
+	internal.Run(ctx, cfg, router)
+
+}
+func Init(ctx context.Context, addrDB string) (*db.Database, error) {
+	database, err := db.NewDatabase(ctx, addrDB)
+	if err != nil {
+		return nil, err
+	}
+	return database, err
+}
